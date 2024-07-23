@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
   std::string response;
   if(substring == "/abcdefg"){
     response = "HTTP/1.1 404 Not Found\r\n\r\n";
-  }else{
+  }else if (substring == "/"){
     response = "HTTP/1.1 200 OK\r\n\r\n";
   }
   send(client_fd,response.c_str(),sizeof(response),0);
