@@ -77,6 +77,8 @@ int main(int argc, char **argv) {
     response = "HTTP/1.1 404 Not Found\r\n\r\n";
   }else if (substring == "/"){
     response = "HTTP/1.1 200 OK\r\n\r\n";
+  }else{
+    response = "HTTP/1.1 404 Not Found\r\n\r\n";
   }
   send(client_fd,response.c_str(),sizeof(response),0);
   close(server_fd);
