@@ -58,9 +58,26 @@ int main(int argc, char **argv) {
    std::cerr << "Failed to connect to client\n";
    return 1;
   }
+  //read request
+  std::string request;
+  char buffer[1024] = {0};
+  int bytesRead = read(client_fd,buffer,1024);
+  if(bytesRead ==-1){
+    std::cerr<<"Failed to read from client\n";
+    return 1;
+  }
+  request += buffer;
+  std::cout << "Request: " << request << "\n";
+  std::string substring = request.substr(request.find_first_of("/"));
+  substring = substring.substr(0,substring.find_first_of(" "));
+  std::cout << "Client connected\n"<<"request target: "<<substring<<"\n";
   
-  std::cout << "Client connected\n";
-  std::string response = "HTTP/1.1 200 OK\r\n\r\n";
+  std::string response;
+  if(substring == "/abcdefg"){
+    response = "HTTP/1.1 404 Not Found\r\n\r\n";
+  }else{
+    response = "HTTP/1.1 200 OK\r\n\r\n";
+  }
   send(client_fd,response.c_str(),sizeof(response),0);
   close(server_fd);
   
