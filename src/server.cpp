@@ -75,19 +75,13 @@ int main(int argc, char **argv) {
   
   
   if(substring.substr(1,4)=="echo"){
-    std::cout<<"rest of substring: "<<substring.substr(4)<<"\n";
+ 
     std::string responseBody = request.substr(request.find_last_of("/")+1);
-    std::cout<<"response body: "<<responseBody<<"\n";
+
     std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
-    std::cout<<"headers: "<<headers<<"\n";
-    if(substring.substr(6)=="abc"){
-      std::cout<<"substr has abc\n";
-      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\nabc";
-      std::cout<<"response: "<<response<<"\n";
-    }else{
-      std::cout<<"substr doesnt have abc\n";
-      response = "HTTP/1.1 404 Not Found\r\n\r\n";
-    }
+
+    response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "+std::to_string(substring.substr(6).length())+"\r\n\r\n"+substring.substr(6);
+    
   }else{
     if(substring == "/abcdefg"){
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
@@ -96,9 +90,9 @@ int main(int argc, char **argv) {
     }else{
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
     }
-  }
-  
+  }  
   send(client_fd,response.c_str(),sizeof(response),0);
+
   close(server_fd);
   
   return 0;
