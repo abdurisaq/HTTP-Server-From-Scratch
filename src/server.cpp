@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
 
     std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
 
-    response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: "+std::to_string(substring.substr(6).length())+"\r\n\r\n"+substring.substr(6);
+    response = "HTTP/1.1 200 OK\r\nContent-Type: no\r\nContent-Length: "+std::to_string(substring.substr(6).length())+"\r\n\r\n"+substring.substr(6);
     std::cout<<"response: "<<response<<"\n";
   }else{
     if(substring == "/abcdefg"){
