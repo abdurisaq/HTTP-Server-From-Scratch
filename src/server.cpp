@@ -71,15 +71,33 @@ int main(int argc, char **argv) {
   std::string substring = request.substr(request.find_first_of("/"));
   substring = substring.substr(0,substring.find_first_of(" "));
   std::cout << "Client connected\n"<<"request target: "<<substring<<"\n";
-  
   std::string response;
-  if(substring == "/abcdefg"){
-    response = "HTTP/1.1 404 Not Found\r\n\r\n";
-  }else if (substring == "/"){
-    response = "HTTP/1.1 200 OK\r\n\r\n";
+  
+  
+  if(substring.substr(1,4)=="echo"){
+    std::cout<<"rest of substring: "<<substring.substr(4)<<"\n";
+    std::string responseBody = request.substr(request.find_last_of("/")+1);
+    std::cout<<"response body: "<<responseBody<<"\n";
+    std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
+    std::cout<<"headers: "<<headers<<"\n";
+    if(substring.substr(6)=="abc"){
+      std::cout<<"substr has abc\n";
+      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\nabc";
+      std::cout<<"response: "<<response<<"\n";
+    }else{
+      std::cout<<"substr doesnt have abc\n";
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    }
   }else{
-    response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    if(substring == "/abcdefg"){
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    }else if (substring == "/"){
+      response = "HTTP/1.1 200 OK\r\n\r\n";
+    }else{
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
+    }
   }
+  
   send(client_fd,response.c_str(),sizeof(response),0);
   close(server_fd);
   
