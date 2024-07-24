@@ -8,6 +8,15 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+std::string makeLowerCase(std::string input){
+  int length = input.length();
+  for(int i = 0; i<length; i++){
+    input[i] = tolower(input[i]);
+  }
+  return input;
+}
+
+
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
@@ -86,7 +95,15 @@ int main(int argc, char **argv) {
     response += "\r\n" + substring.substr(6);
     std::cout<<"response: "<<response<<"\n";
   }else{
-    if(substring == "/abcdefg"){
+    std::cout<<"lowercase substring: "<<makeLowerCase(substring)<<"\n";
+    if(makeLowerCase(substring) == "/user-agent"){
+      std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
+      std::string userAgent = headers.substr(headers.find("User-Agent: "));
+      std::string userAgentHeader = userAgent.substr(0,userAgent.find_first_of  ("\r\n"));
+      userAgent = userAgentHeader.substr(userAgentHeader.find_first_of(":")+2);
+      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length:"+std::to_string(userAgent.length())+"\r\n\r\n"+userAgent;
+    }
+    else if(substring == "/abcdefg"){
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
     }else if (substring == "/"){
       response = "HTTP/1.1 200 OK\r\n\r\n";
@@ -94,6 +111,8 @@ int main(int argc, char **argv) {
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
     }
   }  
+
+  std::cout << "final Response: " << response << "\n";
   send(client_fd,response.c_str(),response.length(),0);
 
   close(server_fd);
