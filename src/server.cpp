@@ -20,10 +20,9 @@ std::string parseRequest(std::string request,std::string directory){
   std::string requestType = request.substr(0,request.find_first_of(" "));
   std::string substring = request.substr(request.find_first_of("/"));
   substring = substring.substr(0,substring.find_first_of(" "));
-  std::string responseBody = request.substr(request.find_last_of("/")+1);
   if(substring.substr(1,4)=="echo"){
  
-    
+    std::string responseBody = request.substr(request.find_last_of("/")+1);
 
     std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
 
@@ -65,9 +64,9 @@ std::string parseRequest(std::string request,std::string directory){
       response += "\r\n" + output;
       std::cout<<"response: "<<response<<"\n";
       }else if(requestType =="POST"){
-        
-        std::cout<<"body: "<<responseBody<<"\n";
-        fwrite(responseBody.c_str(),sizeof(responseBody[0]),responseBody.length(),file);
+        std::string body = request.substr(request.find_last_of("\r\n")+1);
+        std::cout<<"body: "<<body<<"\n";
+        fwrite(body.c_str(),sizeof(body[0]),body.length(),file);
         response = "HTTP/1.1 201 Created\r\n\r\n";
       }
       
