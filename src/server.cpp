@@ -7,7 +7,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <pthread.h>
 #include <thread>
 std::string makeLowerCase(std::string input){
   int length = input.length();
@@ -16,7 +15,7 @@ std::string makeLowerCase(std::string input){
   }
   return input;
 }
-std::string parseRequest(std::string request){
+std::string parseRequest(std::string request,std::string directory){
   std::string response;
   std::string substring = request.substr(request.find_first_of("/"));
   substring = substring.substr(0,substring.find_first_of(" "));
@@ -31,6 +30,32 @@ std::string parseRequest(std::string request){
     response += "Content-Length: " + std::to_string(substring.substr(6).length()) + "\r\n";
     response += "\r\n" + substring.substr(6);
     std::cout<<"response: "<<response<<"\n";
+  }else if(substring.substr(1,5)=="files"){
+    FILE *file;
+    std::string filename = directory + substring.substr(7);
+    file = fopen(filename.c_str(),"r");
+    char buffer[1024];
+    std::string output;
+    std::cout<<"filename: "<<filename<<"\n";
+    if(file == NULL){
+      
+      std::cout<<"file doesn't exist\n";
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
+
+    }else{
+      std::cout<<"file exists\n";
+      while(fgets(buffer,1024,file) !=NULL){
+        output += buffer;
+      }
+      
+      response = "HTTP/1.1 200 OK\r\n";
+      response += "Content-Type: text/plain\r\n";
+      response += "Content-Length: " + std::to_string(output.length()) + "\r\n";
+      response += "\r\n" + output;
+      std::cout<<"response: "<<response<<"\n";
+      fclose(file);
+    }
+    
   }else{
     std::cout<<"lowercase substring: "<<makeLowerCase(substring)<<"\n";
     if(makeLowerCase(substring) == "/user-agent"){
@@ -52,7 +77,7 @@ std::string parseRequest(std::string request){
 }
 
 
-int handle_request(int client_fd){
+int handle_request(int client_fd,std::string directory){
   //read request
   std::string request;
   char buffer[1024] = {0};
@@ -64,7 +89,7 @@ int handle_request(int client_fd){
   request += buffer;
   std::cout << "Request: " << request << "\n";
 
-  std::string response = parseRequest(request);
+  std::string response = parseRequest(request,directory);
   std::cout << "final Response: " << response << "\n";
   int bytesSent = send(client_fd,response.c_str(),response.length(),0);
   if(bytesSent == -1){
@@ -78,7 +103,17 @@ int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
-  
+  // ./your_program.sh --directory /tmp/
+  std::string directory;
+  if(argc == 3){
+    if(std::string(argv[1]) == "--directory"){
+      directory = argv[2];
+      std::cout<<"Directory: "<<directory<<"\n";
+    }else{
+      std::cerr<<"Invalid arguments\n";
+      return 1;
+    }
+  }
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   std::cout << "Logs from your program will appear here!\n";
 
@@ -116,9 +151,6 @@ int main(int argc, char **argv) {
   
   struct sockaddr_in client_addr;
   int client_addr_len = sizeof(client_addr);
-  
-  std::cout << "Waiting for a client to connect...\n";
-  
 
     while (1)
 
@@ -131,7 +163,7 @@ int main(int argc, char **argv) {
         }
         std::cout << "Client connected\n";
 
-        std::thread th(handle_request, client_fd);
+        std::thread th(handle_request, client_fd,directory);
 
         th.detach();
 
