@@ -52,22 +52,27 @@ std::string parseRequest(std::string request){
 }
 
 
-int handle_request(int client_fd, sockaddr_in client_address){
+int handle_request(int client_fd){
   //read request
   std::string request;
   char buffer[1024] = {0};
   int bytesRead = read(client_fd,buffer,1024);
   if(bytesRead ==-1){
     std::cerr<<"Failed to read from client\n";
-    return 1;
+    return 0;
   }
   request += buffer;
   std::cout << "Request: " << request << "\n";
 
   std::string response = parseRequest(request);
-  response = "HTTP/1.1 200 OK\r\n\r\n";
   std::cout << "final Response: " << response << "\n";
-  send(client_fd,response.c_str(),response.length(),0);
+  int bytesSent = send(client_fd,response.c_str(),response.length(),0);
+  if(bytesSent == -1){
+    std::cerr<<"Failed to send response to client\n";
+    return 0;
+  }
+  close(client_fd);
+  return bytesSent;
 }
 int main(int argc, char **argv) {
   // Flush after every std::cout / std::cerr
@@ -114,28 +119,25 @@ int main(int argc, char **argv) {
   
   std::cout << "Waiting for a client to connect...\n";
   
-  int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
-  if (client_fd < 0) {
-   std::cerr << "Failed to connect to client\n";
-   return 1;
-  }
-  handle_request(client_fd, client_addr);
 
     while (1)
 
     {
-
-        client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
-
+        std::cout << "Waiting for a client to connect...\n";
+        int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+        if (client_fd < 0) {
+          std::cerr << "Failed to connect to client\n";
+          return 1;
+        }
         std::cout << "Client connected\n";
 
-        std::thread th(handle_request, client_fd, client_addr);
+        std::thread th(handle_request, client_fd);
 
         th.detach();
 
     }
 
-  close(client_fd);
+  close(server_fd);
   
   return 0;
 }
