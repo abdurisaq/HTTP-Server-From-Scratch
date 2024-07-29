@@ -17,11 +17,13 @@ std::string makeLowerCase(std::string input){
 }
 std::string parseRequest(std::string request,std::string directory){
   std::string response;
+  std::string requestType = request.substr(0,request.find_first_of(" "));
   std::string substring = request.substr(request.find_first_of("/"));
   substring = substring.substr(0,substring.find_first_of(" "));
+  std::string responseBody = request.substr(request.find_last_of("/")+1);
   if(substring.substr(1,4)=="echo"){
  
-    std::string responseBody = request.substr(request.find_last_of("/")+1);
+    
 
     std::string headers = request.substr(request.find_first_of("\r\n")+1,request.find_last_of("\r\n"));
 
@@ -33,7 +35,15 @@ std::string parseRequest(std::string request,std::string directory){
   }else if(substring.substr(1,5)=="files"){
     FILE *file;
     std::string filename = directory + substring.substr(7);
-    file = fopen(filename.c_str(),"r");
+    
+    std::cout<<"request type \'"<<requestType<<"\'\n";
+    if(requestType == "GET"){
+      file = fopen(filename.c_str(),"r");
+    }else if (requestType =="POST"){
+      std::cout<<"creating file\n";
+      file = fopen(filename.c_str(),"w+");
+    }
+    
     char buffer[1024];
     std::string output;
     std::cout<<"filename: "<<filename<<"\n";
@@ -44,7 +54,8 @@ std::string parseRequest(std::string request,std::string directory){
 
     }else{
       std::cout<<"file exists\n";
-      while(fgets(buffer,1024,file) !=NULL){
+      if(requestType =="GET"){
+        while(fgets(buffer,1024,file) !=NULL){
         output += buffer;
       }
       
@@ -53,6 +64,13 @@ std::string parseRequest(std::string request,std::string directory){
       response += "Content-Length: " + std::to_string(output.length()) + "\r\n";
       response += "\r\n" + output;
       std::cout<<"response: "<<response<<"\n";
+      }else if(requestType =="POST"){
+        
+        std::cout<<"body: "<<responseBody<<"\n";
+        fwrite(responseBody.c_str(),sizeof(responseBody[0]),responseBody.length(),file);
+        response = "HTTP/1.1 201 Created\r\n\r\n";
+      }
+      
       fclose(file);
     }
     
