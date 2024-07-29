@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <thread>
+#include <zlib.h>
 std::string makeLowerCase(std::string input){
   int length = input.length();
   for(int i = 0; i<length; i++){
@@ -90,11 +91,41 @@ std::string parseRequest(std::string request,std::string directory){
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
     }
   }  
+
   return response;
 }
 
+void encodeRequest( std::string  request, std::string& response){
+  std::cout<<"request in encoding function: "<<request<<"\n";
+  int encodingLine = request.find("Accept-Encoding: ");
+  std::cout<<encodingLine<<"\n";
+  if(encodingLine ==-1){
+    //just return, no compression needed
+    return;
+  }
+  std::string encoding = request.substr(encodingLine,request.find("\r\n",encodingLine)-encodingLine)+"\r\n";
+  std::string target ="Content-Type";
+  std::string chosenEncoding = encoding.substr(encoding.find_first_of(" ")+1,encoding.find_last_not_of("\r\n") - encoding.find_first_of(" "));
+  
+  if(chosenEncoding != "gzip"){
+    return;
+  }
 
-int handle_request(int client_fd,std::string directory){
+  int inclusionPoint = response.find(target);
+  std::cout<<"inclusion point: "<<inclusionPoint<<"\n";
+  response.insert(inclusionPoint,encoding);
+  // std::string httpLine = response.substr(inclusionPoint,response.find_first_of("\r\n")+2);
+  // std::string rest = response.substr(response.find_first_of("\r\n")+1);
+  // std::cout<<"httpLine: "<<httpLine;
+  // std::cout<<"encoding: "<<encoding;
+  // std::cout<<"rest: "<<rest;
+  // response = httpLine+ encoding + rest;
+  // std::cout<<"encoding halfway through: "<<encoding<<"\n";
+  // std::string chosenEncoding = encoding.substr(encoding.find_first_of(" ")+1,encoding.find("\r\n"));
+  // std::cout<<"encoding: "<<chosenEncoding<<"\n";
+}
+
+int handleRequest(int client_fd,std::string directory){
   //read request
   std::string request;
   char buffer[1024] = {0};
@@ -107,7 +138,8 @@ int handle_request(int client_fd,std::string directory){
   std::cout << "Request: " << request << "\n";
 
   std::string response = parseRequest(request,directory);
-  std::cout << "final Response: " << response << "\n";
+  encodeRequest(request,response);
+  std::cout << "final Response: \n" << response << "\n";
   int bytesSent = send(client_fd,response.c_str(),response.length(),0);
   if(bytesSent == -1){
     std::cerr<<"Failed to send response to client\n";
@@ -134,8 +166,6 @@ int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   std::cout << "Logs from your program will appear here!\n";
 
-  // Uncomment this block to pass the first stage
-  //
   int server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_fd < 0) {
    std::cerr << "Failed to create server socket\n";
@@ -180,7 +210,7 @@ int main(int argc, char **argv) {
         }
         std::cout << "Client connected\n";
 
-        std::thread th(handle_request, client_fd,directory);
+        std::thread th(handleRequest, client_fd,directory);
 
         th.detach();
 
