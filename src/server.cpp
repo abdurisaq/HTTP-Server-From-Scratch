@@ -49,7 +49,7 @@ std::string parseRequest(std::string request,std::string directory){
       }
       
       response = "HTTP/1.1 200 OK\r\n";
-      response += "Content-Type: text/plain\r\n";
+      response += "Content-Type: application/octet-stream\r\n";
       response += "Content-Length: " + std::to_string(output.length()) + "\r\n";
       response += "\r\n" + output;
       std::cout<<"response: "<<response<<"\n";
