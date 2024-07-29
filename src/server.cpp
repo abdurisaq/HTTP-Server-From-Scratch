@@ -65,6 +65,7 @@ int handle_request(int client_fd, sockaddr_in client_address){
   std::cout << "Request: " << request << "\n";
 
   std::string response = parseRequest(request);
+  response = "HTTP/1.1 200 OK\r\n\r\n";
   std::cout << "final Response: " << response << "\n";
   send(client_fd,response.c_str(),response.length(),0);
 }
