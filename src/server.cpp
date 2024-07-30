@@ -119,7 +119,7 @@ void compressBody(std::string & response){
   std::string compressedData;
   int ret;
   // Compression loop
-  while (ret == Z_OK) {
+  do {
       stream.next_out = reinterpret_cast<Bytef*>(outbuffer);
       stream.avail_out = sizeof(outbuffer);
 
@@ -131,7 +131,7 @@ void compressBody(std::string & response){
       
       compressedData.append(outbuffer, sizeof(outbuffer) - stream.avail_out);
       std::cout<<"compressed data so far: "<<compressedData<<"\n";
-  }
+  }while(ret ==Z_OK)
 
   // Clean up
   deflateEnd(&stream);
