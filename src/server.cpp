@@ -146,7 +146,7 @@ void compressBody(std::string & response){
   std::string secondHalf = response.substr(headerEndIndex-4);
   std::cout<<"first half: "<<firstHalf<<"\n";
   std::cout<<"second half: "<<secondHalf<<"\n";
-  response = firstHalf + std::to_string(compressedData.length()) + secondHalf;
+  response = firstHalf + std::to_string(compressedData.size()) + secondHalf;
   std::cout<<"response after compression: "<<response<<"\n";
 }
 
