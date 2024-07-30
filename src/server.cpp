@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <thread>
 #include <zlib.h>
+#include <vector>
 std::string makeLowerCase(std::string input){
   int length = input.length();
   for(int i = 0; i<length; i++){
@@ -95,6 +96,56 @@ std::string parseRequest(std::string request,std::string directory){
   return response;
 }
 
+void compressBody(std::string & response){
+
+  int contentLengthIndex = response.find("Content-Length: ");
+  int headerEndIndex = response.find("\r\n\r\n",contentLengthIndex)+4;
+  std::string body = response.substr(headerEndIndex);
+  std::cout<<"body: "<<body<<"\n";
+  z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+
+    // Initialize compression
+    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
+        throw std::runtime_error("Failed to initialize zlib compression");
+    }
+
+    // Set input data
+    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(body.data()));
+    stream.avail_in = static_cast<uInt>(body.size());
+
+    // Allocate output buffer
+    std::vector<Bytef> buffer(1024);
+    std::string compressedData;
+
+    // Compression loop
+    do {
+        stream.next_out = buffer.data();
+        stream.avail_out = static_cast<uInt>(buffer.size());
+
+        int ret = deflate(&stream, Z_FINISH);
+        if (ret == Z_STREAM_ERROR) {
+            deflateEnd(&stream);
+            throw std::runtime_error("zlib compression error");
+        }
+
+        compressedData.append(reinterpret_cast<char*>(buffer.data()), buffer.size() - stream.avail_out);
+
+    } while (stream.avail_out == 0);
+
+    // Clean up
+    deflateEnd(&stream);
+
+    //compressedData
+    response.erase(headerEndIndex);
+    std::cout<<"compressed data: "<<compressedData<<"\n";
+    std::cout<<"response without uncompressed body: "<<response<<"\n";
+    response += compressedData;
+    std::cout<<"response with compressed body: "<<response<<"\n";
+  
+}
+
+
 void encodeRequest( std::string  request, std::string& response){
   std::cout<<"request in encoding function: "<<request<<"\n";
   int encodingLine = request.find("Accept-Encoding: ");
@@ -123,6 +174,7 @@ void encodeRequest( std::string  request, std::string& response){
   int inclusionPoint = response.find(target);
   std::cout<<"inclusion point: "<<inclusionPoint<<"\n";
   response.insert(inclusionPoint,contentEncoding);
+  compressBody(response);
   
 }
 
