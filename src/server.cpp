@@ -119,7 +119,7 @@ void compressBody(std::string & response){
     std::string compressedData;
 
     // Compression loop
-    do {
+    while (stream.avail_in > 0 || stream.avail_out == 0) {
         stream.next_out = buffer.data();
         stream.avail_out = static_cast<uInt>(buffer.size());
 
@@ -131,7 +131,12 @@ void compressBody(std::string & response){
 
         compressedData.append(reinterpret_cast<char*>(buffer.data()), buffer.size() - stream.avail_out);
 
-    } while (stream.avail_out == 0);
+        // Check if more data is needed
+        if (stream.avail_out == 0 && stream.avail_in > 0) {
+            // Buffer was full, need to process more data
+            buffer.resize(buffer.size() * 2); // Double buffer size if needed
+        }
+    }
 
     // Clean up
     deflateEnd(&stream);
