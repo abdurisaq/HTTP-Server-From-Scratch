@@ -145,7 +145,7 @@ void compressBody(std::string & response){
   response.erase(headerEndIndex);
   std::cout<<"compressed data: "<<compressedData<<"\n";
   std::cout<<"response without uncompressed body: "<<response<<"\n";
-  response += compressedData;
+  response += "\r\n"+compressedData;
   std::cout<<"response with compressed body: "<<response<<"\n";
   
 }
