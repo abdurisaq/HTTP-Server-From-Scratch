@@ -115,39 +115,39 @@ void compressBody(std::string & response){
   stream.avail_in = static_cast<uInt>(body.size());
 
   // Allocate output buffer
-  std::vector<Bytef> buffer(1024);
+  char outbuffer[32768];
   std::string compressedData;
-
+  int ret;
   // Compression loop
-  while (stream.avail_in > 0 || stream.avail_out == 0) {
-      stream.next_out = buffer.data();
-      stream.avail_out = static_cast<uInt>(buffer.size());
+  while (ret == Z_OK) {
+      stream.next_out = reinterpret_cast<Bytef*>(outbuffer);
+      stream.avail_out = sizeof(outbuffer);
 
-      int ret = deflate(&stream, Z_FINISH);
+      ret = deflate(&stream, Z_FINISH);
       if (ret == Z_STREAM_ERROR) {
           deflateEnd(&stream);
           throw std::runtime_error("zlib compression error");
       }
 
-      compressedData.append(reinterpret_cast<char*>(buffer.data()), buffer.size() - stream.avail_out);
-
-      // Check if more data is needed
-      if (stream.avail_out == 0 && stream.avail_in > 0) {
-          // Buffer was full, need to process more data
-          buffer.resize(buffer.size() * 2); // Double buffer size if needed
-      }
+      compressedData.append(outbuffer, sizeof(outbuffer) - stream.avail_out);
   }
 
   // Clean up
   deflateEnd(&stream);
 
   //compressedData
+  std::cout<<"response before compression: "<<response<<"\n";
   response.erase(headerEndIndex);
   std::cout<<"compressed data: "<<compressedData<<"\n";
-  std::cout<<"response without uncompressed body: "<<response<<"\n";
-  response += "\r\n"+compressedData;
+  std::cout<<"response without uncompressed body: "<<response<<"1"<<"\n";
+  response += compressedData;
   std::cout<<"response with compressed body: "<<response<<"\n";
-  
+  std::string firstHalf = response.substr(0,contentLengthIndex+16);
+  std::string secondHalf = response.substr(headerEndIndex-4);
+  std::cout<<"first half: "<<firstHalf<<"\n";
+  std::cout<<"second half: "<<secondHalf<<"\n";
+  response = firstHalf + std::to_string(compressedData.length()) + secondHalf;
+  std::cout<<"response after compression: "<<response<<"\n";
 }
 
 
