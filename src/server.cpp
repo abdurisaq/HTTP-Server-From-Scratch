@@ -103,50 +103,50 @@ void compressBody(std::string & response){
   std::string body = response.substr(headerEndIndex);
   std::cout<<"body: "<<body<<"\n";
   z_stream stream;
-    memset(&stream, 0, sizeof(stream));
+  memset(&stream, 0, sizeof(stream));
 
-    // Initialize compression
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK) {
-        throw std::runtime_error("Failed to initialize zlib compression");
-    }
+  // Initialize compression
+  if (deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+      throw std::runtime_error("Failed to initialize zlib compression");
+  }
 
-    // Set input data
-    stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(body.data()));
-    stream.avail_in = static_cast<uInt>(body.size());
+  // Set input data
+  stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(body.data()));
+  stream.avail_in = static_cast<uInt>(body.size());
 
-    // Allocate output buffer
-    std::vector<Bytef> buffer(1024);
-    std::string compressedData;
+  // Allocate output buffer
+  std::vector<Bytef> buffer(1024);
+  std::string compressedData;
 
-    // Compression loop
-    while (stream.avail_in > 0 || stream.avail_out == 0) {
-        stream.next_out = buffer.data();
-        stream.avail_out = static_cast<uInt>(buffer.size());
+  // Compression loop
+  while (stream.avail_in > 0 || stream.avail_out == 0) {
+      stream.next_out = buffer.data();
+      stream.avail_out = static_cast<uInt>(buffer.size());
 
-        int ret = deflate(&stream, Z_FINISH);
-        if (ret == Z_STREAM_ERROR) {
-            deflateEnd(&stream);
-            throw std::runtime_error("zlib compression error");
-        }
+      int ret = deflate(&stream, Z_FINISH);
+      if (ret == Z_STREAM_ERROR) {
+          deflateEnd(&stream);
+          throw std::runtime_error("zlib compression error");
+      }
 
-        compressedData.append(reinterpret_cast<char*>(buffer.data()), buffer.size() - stream.avail_out);
+      compressedData.append(reinterpret_cast<char*>(buffer.data()), buffer.size() - stream.avail_out);
 
-        // Check if more data is needed
-        if (stream.avail_out == 0 && stream.avail_in > 0) {
-            // Buffer was full, need to process more data
-            buffer.resize(buffer.size() * 2); // Double buffer size if needed
-        }
-    }
+      // Check if more data is needed
+      if (stream.avail_out == 0 && stream.avail_in > 0) {
+          // Buffer was full, need to process more data
+          buffer.resize(buffer.size() * 2); // Double buffer size if needed
+      }
+  }
 
-    // Clean up
-    deflateEnd(&stream);
+  // Clean up
+  deflateEnd(&stream);
 
-    //compressedData
-    response.erase(headerEndIndex);
-    std::cout<<"compressed data: "<<compressedData<<"\n";
-    std::cout<<"response without uncompressed body: "<<response<<"\n";
-    response += compressedData;
-    std::cout<<"response with compressed body: "<<response<<"\n";
+  //compressedData
+  response.erase(headerEndIndex);
+  std::cout<<"compressed data: "<<compressedData<<"\n";
+  std::cout<<"response without uncompressed body: "<<response<<"\n";
+  response += compressedData;
+  std::cout<<"response with compressed body: "<<response<<"\n";
   
 }
 
