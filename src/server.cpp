@@ -105,25 +105,25 @@ void encodeRequest( std::string  request, std::string& response){
   }
   std::string encoding = request.substr(encodingLine,request.find("\r\n",encodingLine)-encodingLine)+"\r\n";
   std::string target ="Content-Type";
-  std::string chosenEncoding = encoding.substr(encoding.find_first_of(" ")+1,encoding.find_last_not_of("\r\n") - encoding.find_first_of(" "));
-  
-  if(chosenEncoding != "gzip"){
+  std::string encodings = encoding.substr(encoding.find_first_of(" ")+1,encoding.find_last_not_of("\r\n") - encoding.find_first_of(" "));
+  int chosenEncodingIndex = encodings.find("gzip");
+  if(chosenEncodingIndex == -1){
     return;
   }
+  int endOfEncoding = encodings.find_first_of(",",chosenEncodingIndex);
+   std::string chosenEncoding;
+  if(endOfEncoding != -1){
+    chosenEncoding = encodings.substr(chosenEncodingIndex,endOfEncoding-chosenEncodingIndex);
+  }else{
+    chosenEncoding = encodings.substr(chosenEncodingIndex,encoding.find_last_not_of("\r\n")-chosenEncodingIndex);
+  }
+  std::cout<<"chosen encoding: "<<chosenEncoding<<"\n";
   std::string contentEncoding = "Content-Encoding: "+chosenEncoding+"\r\n";
 
   int inclusionPoint = response.find(target);
   std::cout<<"inclusion point: "<<inclusionPoint<<"\n";
   response.insert(inclusionPoint,contentEncoding);
-  // std::string httpLine = response.substr(inclusionPoint,response.find_first_of("\r\n")+2);
-  // std::string rest = response.substr(response.find_first_of("\r\n")+1);
-  // std::cout<<"httpLine: "<<httpLine;
-  // std::cout<<"encoding: "<<encoding;
-  // std::cout<<"rest: "<<rest;
-  // response = httpLine+ encoding + rest;
-  // std::cout<<"encoding halfway through: "<<encoding<<"\n";
-  // std::string chosenEncoding = encoding.substr(encoding.find_first_of(" ")+1,encoding.find("\r\n"));
-  // std::cout<<"encoding: "<<chosenEncoding<<"\n";
+  
 }
 
 int handleRequest(int client_fd,std::string directory){
