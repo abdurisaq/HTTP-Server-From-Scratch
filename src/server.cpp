@@ -110,10 +110,11 @@ void encodeRequest( std::string  request, std::string& response){
   if(chosenEncoding != "gzip"){
     return;
   }
+  std::string contentEncoding = "Content-Encoding: "+chosenEncoding+"\r\n";
 
   int inclusionPoint = response.find(target);
   std::cout<<"inclusion point: "<<inclusionPoint<<"\n";
-  response.insert(inclusionPoint,encoding);
+  response.insert(inclusionPoint,contentEncoding);
   // std::string httpLine = response.substr(inclusionPoint,response.find_first_of("\r\n")+2);
   // std::string rest = response.substr(response.find_first_of("\r\n")+1);
   // std::cout<<"httpLine: "<<httpLine;
