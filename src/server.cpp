@@ -128,8 +128,9 @@ void compressBody(std::string & response){
           deflateEnd(&stream);
           throw std::runtime_error("zlib compression error");
       }
-
+      
       compressedData.append(outbuffer, sizeof(outbuffer) - stream.avail_out);
+      std::cout<<"compressed data so far: "<<compressedData<<"\n";
   }
 
   // Clean up
