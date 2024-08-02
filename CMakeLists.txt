@@ -1,15 +1,17 @@
 cmake_minimum_required(VERSION 3.13)
 
-project(http-server-starter-cpp)
+project(network_application)
 
-file(GLOB_RECURSE SOURCE_FILES src/*.cpp src/*.hpp)
+# Define the C++ standard
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set(CMAKE_CXX_STANDARD 23) # Enable the C++23 standard
-set(THREADS_PREFER_PTHREAD_FLAG ON)
+# Collect all source files for the server and client
+file(GLOB SERVER_SOURCES dataServer/*.cpp dataServer/*.hpp)
+file(GLOB CLIENT_SOURCES remoteClient/*.cpp remoteClient/*.hpp)
 
-find_package(Threads REQUIRED)
-find_package(ZLIB REQUIRED)
+# Create the server executable
+add_executable(server ${SERVER_SOURCES})
 
-add_executable(server ${SOURCE_FILES})
-
-target_link_libraries(server PRIVATE Threads::Threads ZLIB::ZLIB)
+# Create the client executable
+add_executable(client ${CLIENT_SOURCES})
