@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <thread>
 
-#define PORT 4221
+#define PORT 10000
 
 #define BROADCAST_IP "255.255.255.255"
 int main(int argc, char **argv) {
@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
   struct sockaddr_in broadcastAddr, recvAddr;
   socklen_t addrLen = sizeof(recvAddr);
 
-  int clientFD = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int clientFD = socket(AF_INET, SOCK_STREAM, 0);
   if (clientFD < 0) {
    std::cerr << "Failed to create server socket\n";
    return 1;
@@ -34,11 +34,20 @@ int main(int argc, char **argv) {
   }
   
   broadcastAddr.sin_family = AF_INET;
-  broadcastAddr.sin_addr.s_addr = inet_addr(BROADCAST_IP);
+  broadcastAddr.sin_addr.s_addr = inet_addr("TARGET-IP-ADDRESS");
   broadcastAddr.sin_port = htons(PORT);
-  
+
+
+  std::cout<<"Sending discovery message to ip address "<<broadcastAddr.sin_addr.s_addr<<"\n";
+
+  if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0){
+    std::cerr << "Failed to connect to server\n";
+    close(clientFD);
+    return 1;
+  } 
+
   std::string discoveryMessage = "DISCOVER_SERVER";
-  sendto(clientFD, discoveryMessage.c_str(), discoveryMessage.size(), 0, (const struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr));
+  send(clientFD, discoveryMessage.c_str(), discoveryMessage.size(), 0);
   char buffer[1024];
   int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
   buffer[n] = '\0';

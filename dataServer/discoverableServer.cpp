@@ -8,8 +8,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <thread>
-#define PORT 4221
-
+#define PORT 10000
+#define BROADCAST_IP "255.255.255.255"
 bool isLocalAddress(const struct sockaddr_in &clientAddr) {
     return true;
 }
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   std::cout << "Logs from your program will appear here!\n";
 
-  int server_fd = socket(AF_INET, SOCK_DGRAM, 0);
+  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_fd < 0) {
    std::cerr << "Failed to create server socket\n";
    return 1;
@@ -47,36 +47,69 @@ int main(int argc, char **argv) {
   }
   
   struct sockaddr_in server_addr;
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(PORT);
-  
-  if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) != 0) {
-    std::cerr << "Failed to bind to port \n";
-    return 1;
-  }
-  
-  
-  struct sockaddr_in clientAddr;
-  socklen_t ClientAddrLen = sizeof(clientAddr);
-  std::cout<<"listening at ip address: "<<inet_ntoa(server_addr.sin_addr)<<" and port: "<<PORT<<"\n";
-  char buffer[1024];
-    while (1){
-       int n = recvfrom(server_fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&clientAddr, &ClientAddrLen);
-      buffer[n] = '\0';
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(PORT);
 
-      std::string clientMessage(buffer);
-      if (clientMessage == "DISCOVER_SERVER") {
-          if (isLocalAddress(clientAddr)) {
-              std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
-              sendto(server_fd, serverResponse.c_str(), serverResponse.size(), 0, (const struct sockaddr *)&clientAddr, ClientAddrLen);
-          } else {
-              std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
-          }
-      }
+    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
+        perror("bind");
+        std::cerr << "Failed to bind to port\n";
+        return 1;
     }
 
-  close(server_fd);
-  
-  return 0;
+    if (listen(server_fd, 5) < 0) {
+        perror("listen");
+        std::cerr << "Failed to listen on socket\n";
+        return 1;
+    }
+
+    std::cout << "Listening at IP address: " << inet_ntoa(server_addr.sin_addr) << " and port: " << PORT << "\n";
+
+    while (true) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddrLen = sizeof(clientAddr);
+        int client_fd = accept(server_fd, (struct sockaddr *)&clientAddr, &clientAddrLen);
+        if (client_fd < 0) {
+            std::cerr << "Failed to accept connection\n";
+            continue;
+        }
+
+        std::cout << "Got a connection from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+
+        char buffer[1024];
+        while (true) {
+            int n = read(client_fd, buffer, sizeof(buffer) - 1);
+            if (n <= 0) {
+                if (n == 0) {
+                    std::cout << "Client disconnected\n";
+                } else {
+                    std::cerr << "Failed to read from socket\n";
+                }
+                break;
+            }
+
+            buffer[n] = '\0';
+            std::string clientMessage(buffer);
+            std::cout << "Received: " << clientMessage << std::endl;
+
+            if (clientMessage == "DISCOVER_SERVER") {
+                if (isLocalAddress(clientAddr)) {
+                    std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
+                    write(client_fd, serverResponse.c_str(), serverResponse.size());
+                } else {
+                    std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+                }
+            } else if (clientMessage == "TERMINATE") {
+                std::cout << "Terminating server\n";
+                close(client_fd);
+                close(server_fd);
+                return 0;
+            }
+        }
+
+        close(client_fd);
+    }
+
+    close(server_fd);
+    return 0;
 }
