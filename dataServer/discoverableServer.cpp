@@ -13,8 +13,39 @@
 bool isLocalAddress(const struct sockaddr_in &clientAddr) {
     return true;
 }
+void discoverServers() {
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        std::cerr << "Socket creation failed" << std::endl;
+        return;
+    }
+
+    sockaddr_in listenAddr;
+    std::memset(&listenAddr, 0, sizeof(listenAddr));
+    listenAddr.sin_family = AF_INET;
+    listenAddr.sin_addr.s_addr = INADDR_ANY;
+    listenAddr.sin_port = htons(PORT);
+
+    if (bind(sock, (sockaddr*)&listenAddr, sizeof(listenAddr)) < 0) {
+        std::cerr << "Bind failed" << std::endl;
+        return;
+    }
+
+    char buffer[1024];
+    sockaddr_in senderAddr;
+    socklen_t senderAddrLen = sizeof(senderAddr);
+    ssize_t len = recvfrom(sock, buffer, sizeof(buffer) - 1, 0, (sockaddr*)&senderAddr, &senderAddrLen);
+    std::cout<<"received message\n";
+    if (len > 0) {
+        buffer[len] = '\0';
+        std::cout << "Received broadcast: " << buffer << std::endl;
+    }
+
+    close(sock);
+}
 
 int main(int argc, char **argv) {
+    //discoverServers();
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
@@ -93,6 +124,7 @@ int main(int argc, char **argv) {
             std::cout << "Received: " << clientMessage << std::endl;
 
             if (clientMessage == "DISCOVER_SERVER") {
+                std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
                 if (isLocalAddress(clientAddr)) {
                     std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
                     write(client_fd, serverResponse.c_str(), serverResponse.size());
