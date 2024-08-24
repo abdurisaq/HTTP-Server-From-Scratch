@@ -43,9 +43,65 @@ void discoverServers() {
 
     close(sock);
 }
+bool checkLocalAddress(in_addr inAddr) {
 
+    // Convert the in_addr structure to an integer
+    uint32_t ipInt = ntohl(inAddr.s_addr);
+
+    // Check for 10.0.0.0/8
+    if ((ipInt & 0xFF000000) == 0x0A000000) { // 0xFF000000 = 255.0.0.0, 0x0A000000 = 10.0.0.0
+        return true;
+    }
+
+    // Check for 172.16.0.0/12
+    if ((ipInt & 0xFFF00000) == 0xAC100000) { // 0xFFF00000 = 255.240.0.0, 0xAC100000 = 172.16.0.0
+        return true;
+    }
+
+    // Check for 192.168.0.0/16
+    if ((ipInt & 0xFFFF0000) == 0xC0A80000) { // 0xFFFF0000 = 255.255.0.0, 0xC0A80000 = 192.168.0.0
+        return true;
+    }
+
+    // Not a private IP
+    return false;
+}
+
+void handleRequest(int clientFD,sockaddr_in clientAddr ){
+
+    char buffer[1024];
+    while (true) {
+        int n = read(clientFD, buffer, sizeof(buffer) - 1);
+        if (n <= 0) {
+            if (n == 0) {
+                std::cout << "Client disconnected\n";
+            } else {
+                std::cerr <<"Failed to read from socket\n";
+            }
+            break;
+        }
+
+        buffer[n] = '\0';
+        std::string clientMessage(buffer);
+        std::cout << "Received: " << clientMessage << std::endl;
+
+        if (clientMessage == "DISCOVER_SERVER") {
+            std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
+            if (isLocalAddress(clientAddr)) {
+                std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
+                write(clientFD, serverResponse.c_str(), serverResponse.size());
+            } else {
+                std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+            }
+        } else if (clientMessage == "TERMINATE") {
+            std::cout << "Terminating server\n";
+            close(clientFD);
+            return;
+        }
+    }
+
+}
 int main(int argc, char **argv) {
-    //discoverServers();
   // Flush after every std::cout / std::cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
@@ -104,42 +160,49 @@ int main(int argc, char **argv) {
             std::cerr << "Failed to accept connection\n";
             continue;
         }
+        std::string incommingIp = inet_ntoa(clientAddr.sin_addr);
+        std::cout << "Got a connection from " << incommingIp << std::endl;
+        /*handleRequest(client_fd, clientAddr);*/
+        std::thread th(handleRequest, client_fd,clientAddr);
 
-        std::cout << "Got a connection from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
 
-        char buffer[1024];
-        while (true) {
-            int n = read(client_fd, buffer, sizeof(buffer) - 1);
-            if (n <= 0) {
-                if (n == 0) {
-                    std::cout << "Client disconnected\n";
-                } else {
-                    std::cerr << "Failed to read from socket\n";
-                }
-                break;
-            }
-
-            buffer[n] = '\0';
-            std::string clientMessage(buffer);
-            std::cout << "Received: " << clientMessage << std::endl;
-
-            if (clientMessage == "DISCOVER_SERVER") {
-                std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
-                if (isLocalAddress(clientAddr)) {
-                    std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
-                    write(client_fd, serverResponse.c_str(), serverResponse.size());
-                } else {
-                    std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
-                }
-            } else if (clientMessage == "TERMINATE") {
-                std::cout << "Terminating server\n";
-                close(client_fd);
-                close(server_fd);
-                return 0;
-            }
-        }
-
-        close(client_fd);
+        th.detach();
+        /*if(checkLocalAddress(clientAddr.sin_addr)){*/
+        /*    std::cout<<"Local address\n";*/
+        /*}*/
+        /*char buffer[1024];*/
+        /*while (true) {*/
+        /*    int n = read(client_fd, buffer, sizeof(buffer) - 1);*/
+        /*    if (n <= 0) {*/
+        /*        if (n == 0) {*/
+        /*            std::cout << "Client disconnected\n";*/
+        /*        } else {*/
+        /*            std::cerr << "Failed to read from socket\n";*/
+        /*        }*/
+        /*        break;*/
+        /*    }*/
+        /**/
+        /*    buffer[n] = '\0';*/
+        /*    std::string clientMessage(buffer);*/
+        /*    std::cout << "Received: " << clientMessage << std::endl;*/
+        /**/
+        /*    if (clientMessage == "DISCOVER_SERVER") {*/
+        /*        std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";*/
+        /*        if (isLocalAddress(clientAddr)) {*/
+        /*            std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);*/
+        /*            write(client_fd, serverResponse.c_str(), serverResponse.size());*/
+        /*        } else {*/
+        /*            std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;*/
+        /*        }*/
+        /*    } else if (clientMessage == "TERMINATE") {*/
+        /*        std::cout << "Terminating server\n";*/
+        /*        close(client_fd);*/
+        /*        close(server_fd);*/
+        /*        return 0;*/
+        /*    }*/
+        /*}*/
+        /**/
+        /*close(client_fd);*/
     }
 
     close(server_fd);

@@ -126,6 +126,15 @@ int main(int argc, char **argv) {
   buffer[n] = '\0';
   std::cout << "Received: " << buffer << "\n";
   std::cout << "Discovered server: " << inet_ntoa(recvAddr.sin_addr) << std::endl;
-  close(clientFD);
+    std::cout<<"connected, please type and then click enter to send messages to the server"<<std::endl;
+    std::cout<<"type \"terminate\" to kill the connection"<<std::endl;
+    while(true){
+        std::string input;
+        std::getline(std::cin,input);
+        if(input=="terminate")break;
+
+        send(clientFD,input.c_str(),input.size(),0);
+    }
+    close(clientFD);
   return 0;
 }
