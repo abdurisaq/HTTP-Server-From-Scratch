@@ -1,4 +1,6 @@
 #!/bin/sh
+cd ..
+
 set -e
 
 # Create and navigate to the build directory

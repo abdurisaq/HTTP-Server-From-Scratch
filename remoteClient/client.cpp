@@ -2,15 +2,21 @@
 #include <cstdlib>
 #include <string>
 #include <cstring>
-#include <unistd.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <thread>
 #include <vector>
 #define PORT 10000
-
+#ifdef _WIN32
+#include <windows.h>
+#include <winuser.h>
+#elif __linux__
+#include <unistd.h>
+#include <X11/Xlib.h>  // Include Linux-specific headers
+#include <X11/keysym.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#endif
 #define BROADCAST_IP "255.255.255.255"
 std::string runShellScript(const std::string &scriptPath) {
     std::array<char, 128> buffer;
@@ -34,7 +40,7 @@ std::string runShellScript(const std::string &scriptPath) {
 in_addr_t  scanForServer(){
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);
-    std::string path = runShellScript("./scanLAN.sh");
+    std::string path = runShellScript("./scripts/scanLAN.sh");
     int clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
      std::cerr << "Failed to create server socket\n";
