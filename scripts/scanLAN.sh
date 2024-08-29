@@ -25,7 +25,7 @@ for i in $(seq 0 255); do
     ip="$baseIP.$i"
     ping_ip "$ip" &
     # Limit the number of parallel pings
-    if [[ $(jobs -r -p | wc -l) -ge 20 ]]; then
+    if [[ $(jobs -r -p | wc -l) -ge 40 ]]; then
         wait -n
     fi
 done

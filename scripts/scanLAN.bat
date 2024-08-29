@@ -1,12 +1,22 @@
 @echo off
-set baseIP = " 
+SETLOCAL ENABLEDELAYEDEXPANSION
+set baseIP = "192.168.1"
+set outputFile = "ipaddress.txt"
 
 
 
+if exist outputFile (
+    echo. > %outputFile%
+)
 
 
+FOR /L %%A IN (0,1,255) DO (
+  ECHO %%A
+  SET "fullIP=%baseIP%.%%A"
 
 
+  !fullIP!
+)
 
 
 
