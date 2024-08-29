@@ -43,8 +43,8 @@ in_addr_t  scanForServer(){
     std::string path = runShellScript("./scripts/scanLAN.sh");
     int clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
-     std::cerr << "Failed to create server socket\n";
-     exit(1);
+        std::cerr << "Failed to create server socket\n";
+        exit(1);
     }
 
     char buffer[1024];
@@ -80,67 +80,74 @@ in_addr_t  scanForServer(){
         if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) >= 0){
             std::cout<<"Connected to server at ip address"<<inet_ntoa(broadcastAddr.sin_addr)<<"\n";
             break;
-            
+
         } else{
             std::cerr << "Failed to connect to server\n";
         }
     }
     return broadcastAddr.sin_addr.s_addr;
-    
+
 }
 
 
 
 int main(int argc, char **argv) {
-  // Flush after every std::cout / std::cerr
-  std::cout << std::unitbuf;
-  std::cerr << std::unitbuf;
-  struct sockaddr_in broadcastAddr, recvAddr;
-  socklen_t addrLen = sizeof(recvAddr);
+    // Flush after every std::cout / std::cerr
+    std::cout << std::unitbuf;
+    std::cerr << std::unitbuf;
+    struct sockaddr_in broadcastAddr, recvAddr;
+    socklen_t addrLen = sizeof(recvAddr);
 
-  int clientFD = socket(AF_INET, SOCK_STREAM, 0);
-  if (clientFD < 0) {
-   std::cerr << "Failed to create server socket\n";
-   return 1;
-  }
-  in_addr_t serverAddr =  scanForServer();
-  // Since the tester restarts your program quite often, setting SO_REUSEADDR
-  // ensures that we don't run into 'Address already in use' errors
-  int broadcast = 1;
-  if (setsockopt(clientFD, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
-    std::cerr << "setsockopt failed\n";
-    return 1;
-  }
-  
-  broadcastAddr.sin_family = AF_INET;
-  broadcastAddr.sin_addr.s_addr = serverAddr;
-  broadcastAddr.sin_port = htons(PORT);
+    int clientFD = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientFD < 0) {
+        std::cerr << "Failed to create server socket\n";
+        return 1;
+    }
+    in_addr_t serverAddr =  scanForServer();
+    // Since the tester restarts your program quite often, setting SO_REUSEADDR
+    // ensures that we don't run into 'Address already in use' errors
+    int broadcast = 1;
+    if (setsockopt(clientFD, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
+        std::cerr << "setsockopt failed\n";
+        return 1;
+    }
+
+    broadcastAddr.sin_family = AF_INET;
+    broadcastAddr.sin_addr.s_addr = serverAddr;
+    broadcastAddr.sin_port = htons(PORT);
 
 
-  std::cout<<"Sending discovery message to ip address "<<broadcastAddr.sin_addr.s_addr<<"\n";
+    std::cout<<"Sending discovery message to ip address "<<broadcastAddr.sin_addr.s_addr<<"\n";
 
-  if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0){
-    std::cerr << "Failed to connect to server\n";
-    close(clientFD);
-    return 1;
-  } 
+    if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0){
+        std::cerr << "Failed to connect to server\n";
+        close(clientFD);
+        return 1;
+    } 
 
-  std::string discoveryMessage = "DISCOVER_SERVER";
-  send(clientFD, discoveryMessage.c_str(), discoveryMessage.size(), 0);
-  char buffer[1024];
-  int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
-  buffer[n] = '\0';
-  std::cout << "Received: " << buffer << "\n";
-  std::cout << "Discovered server: " << inet_ntoa(recvAddr.sin_addr) << std::endl;
+    std::string discoveryMessage = "DISCOVER_SERVER";
+    send(clientFD, discoveryMessage.c_str(), discoveryMessage.size(), 0);
+    char buffer[1024];
+    int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
+    buffer[n] = '\0';
+    std::cout << "Received: " << buffer << "\n";
+    std::cout << "Discovered server: " << inet_ntoa(recvAddr.sin_addr) << std::endl;
     std::cout<<"connected, please type and then click enter to send messages to the server"<<std::endl;
     std::cout<<"type \"terminate\" to kill the connection"<<std::endl;
-    while(true){
-        std::string input;
-        std::getline(std::cin,input);
-        if(input=="terminate")break;
+    const char* expectedPrefix = "SERVER_RESPONSE";
+    if (strncmp(buffer, expectedPrefix, strlen(expectedPrefix)) != 0) {
+        std::cout << "did not get the expected response, closing connection" << std::endl;
+        std::cout << "response received: " << buffer << std::endl;
+    } else{
 
-        send(clientFD,input.c_str(),input.size(),0);
+        while(true){
+            std::string input;
+            std::getline(std::cin,input);
+            if(input=="terminate")break;
+
+            send(clientFD,input.c_str(),input.size(),0);
+        }
     }
     close(clientFD);
-  return 0;
+    return 0;
 }
