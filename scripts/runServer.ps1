@@ -19,7 +19,7 @@ try {
 
 # Build the project target 'client'
 try {
-    cmake --build . --target server
+    cmake --build . --target server_win
 } catch {
     Write-Host "Build failed. Exiting with error code $($LASTEXITCODE)."
     exit $LASTEXITCODE
@@ -30,7 +30,7 @@ Set-Location -Path .. -ErrorAction Stop
 
 # Execute the built client with any arguments passed to the script
 try {
-    & ".\build_win\debug\server" $args
+    & ".\build_win\debug\server_win" $args
 } catch {
     Write-Host "Execution failed. Exiting with error code $($LASTEXITCODE)."
     exit $LASTEXITCODE

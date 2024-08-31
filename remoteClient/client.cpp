@@ -3,7 +3,7 @@
 #include <string>
 #include <cstring>
 #include <sys/types.h>
-#include <thread>
+// #include <thread>
 #include <vector>
 #define PORT 10000
 #ifdef _WIN32
