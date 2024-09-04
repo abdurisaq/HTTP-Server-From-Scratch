@@ -1,4 +1,5 @@
 #include <iostream>
+#include <winsock2.h>
 #include <cstdlib>
 #include <string>
 #include <cstring>
@@ -8,7 +9,6 @@
 #define PORT 10000
 #include <Windows.h>
 #include <winuser.h>
-#include <winsock2.h>
 // #elif __linux__
 // #include <unistd.h>
 // #include <X11/Xlib.h>  // Include Linux-specific headers

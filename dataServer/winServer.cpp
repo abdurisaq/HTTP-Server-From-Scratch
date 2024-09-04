@@ -2,74 +2,80 @@
 #include <cstdlib>
 #include <string>
 #include <cstring>
-#include <sys/types.h>
+#include <thread>
 #include <vector>
-#define PORT 10000
-#include <Windows.h>
-#include <winuser.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
+
+#define PORT 50000 
 #define BROADCAST_IP "255.255.255.255"
-void startup(){
+
+void startup() {
     WSADATA wsadata;
-    WSAStartup(MAKEWORD(2,2),&wsadata);
-
+    if (WSAStartup(MAKEWORD(2, 2), &wsadata) != 0) {
+        std::cerr << "Failed to initialize Winsock\n";
+        exit(1);
+    }
 }
 
-void handleRequest(int clientFD,sockaddr_in clientAddr ){
-
+void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
+    // Handle the client request
 }
+
 int main(int argc, char **argv) {
     startup();
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server_fd < 0) {
-   std::cerr << "Failed to create server socket\n";
-   return 1;
-  }
-  
-  // Since the tester restarts your program quite often, setting SO_REUSEADDR
-  // ensures that we don't run into 'Address already in use' errors
-  int reuse = 1;
-  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-    std::cerr << "setsockopt failed\n";
-    return 1;
-  }
-  
-  struct sockaddr_in server_addr;
+
+    SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == INVALID_SOCKET) {
+        std::cerr << "Failed to create server socket: " << WSAGetLastError() << "\n";
+        return 1;
+    }
+
+    int reuse = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+        std::cerr << "setsockopt failed: " << WSAGetLastError() << "\n";
+        closesocket(server_fd);
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_addr.s_addr = INADDR_ANY; // INADDR_ANY to bind to all interfaces
     server_addr.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
-        perror("bind");
-        std::cerr << "Failed to bind to port\n";
+    if (bind(server_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+        std::cerr << "Failed to bind to port: " << WSAGetLastError() << "\n";
+        closesocket(server_fd);
+        WSACleanup();
         return 1;
     }
 
-    if (listen(server_fd, 5) < 0) {
-        perror("listen");
-        std::cerr << "Failed to listen on socket\n";
+    if (listen(server_fd, 5) == SOCKET_ERROR) {
+        std::cerr << "Failed to listen on socket: " << WSAGetLastError() << "\n";
+        closesocket(server_fd);
+        WSACleanup();
         return 1;
     }
 
-    std::cout << "Listening at IP address: " << inet_ntoa(server_addr.sin_addr) << " and port: " << PORT << "\n";
+    std::cout << "Listening on port " << PORT << std::endl;
 
     while (true) {
-        struct sockaddr_in clientAddr;
-        socklen_t clientAddrLen = sizeof(clientAddr);
-        int client_fd = accept(server_fd, (struct sockaddr *)&clientAddr, &clientAddrLen);
-        if (client_fd < 0) {
-            std::cerr << "Failed to accept connection\n";
+        sockaddr_in clientAddr;
+        int clientAddrLen = sizeof(clientAddr);
+        SOCKET client_fd = accept(server_fd, (sockaddr*)&clientAddr, &clientAddrLen);
+        if (client_fd == INVALID_SOCKET) {
+            std::cerr << "Failed to accept connection: " << WSAGetLastError() << "\n";
             continue;
         }
-        std::string incommingIp = inet_ntoa(clientAddr.sin_addr);
-        std::cout << "Got a connection from " << incommingIp << std::endl;
-        /*handleRequest(client_fd, clientAddr);*/
-        std::thread th(handleRequest, client_fd,clientAddr);
 
-
+        std::cout << "Got a connection" << std::endl;
+        std::thread th(handleRequest, client_fd, clientAddr);
         th.detach();
     }
 
-    close(server_fd);
+    closesocket(server_fd);
+    WSACleanup();
     return 0;
 }
+
