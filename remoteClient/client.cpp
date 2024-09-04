@@ -18,28 +18,22 @@
 #include <netdb.h>
 #endif
 #define BROADCAST_IP "255.255.255.255"
-std::string runShellScript(const std::string &scriptPath) {
-    std::array<char, 128> buffer;
-    std::string result;
-    FILE* pipe = popen(scriptPath.c_str(), "r");
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    // Read till end of process
-    try {
-        while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-            result += buffer.data();
-        }
-    } catch (...) {
-        pclose(pipe);
-        throw;
+void runShellScript(const std::string &scriptPath) {
+    std::string command = scriptPath;
+
+    // Execute the command
+    int result = system(command.c_str());
+
+    // Check the result of the command
+    if (result != 0) {
+        throw std::runtime_error("Command failed with exit status: " + std::to_string(result));
     }
-    pclose(pipe);
-    return result;
 }
 
 in_addr_t  scanForServer(){
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);
-    std::string path = runShellScript("./scripts/scanLAN.sh");
+    runShellScript("./scripts/scanLAN.sh");
     int clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
         std::cerr << "Failed to create server socket\n";
