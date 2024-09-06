@@ -19,7 +19,7 @@ void discoverServers() {
         std::cerr << "Socket creation failed" << std::endl;
         return;
     }
-
+        
     sockaddr_in listenAddr;
     std::memset(&listenAddr, 0, sizeof(listenAddr));
     listenAddr.sin_family = AF_INET;

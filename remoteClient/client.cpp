@@ -43,7 +43,6 @@ in_addr_t  scanForServer(){
     char buffer[1024];
     std::vector<std::string> output;
 
-    std::cout<<path<<"\n";
     FILE*  file = fopen("./ipaddress.txt","r");
     if(file == NULL){
         std::cerr << "Failed to open file\n";

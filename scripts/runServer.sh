@@ -9,7 +9,7 @@ mkdir -p build
 cd build
 
 # Run CMake to configure the project
-cmake ..
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
 
 # Build the server executable
 cmake --build . --target server
