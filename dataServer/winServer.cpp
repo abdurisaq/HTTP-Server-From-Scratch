@@ -20,8 +20,64 @@ void startup() {
     }
 }
 
+bool checkLocalAddress(sockaddr_in inAddr) {
+
+    // Convert the in_addr structure to an integer
+    uint32_t ipInt = ntohl(inAddr.sin_addr.s_addr);
+
+    // Check for 10.0.0.0/8
+    if ((ipInt & 0xFF000000) == 0x0A000000) { // 0xFF000000 = 255.0.0.0, 0x0A000000 = 10.0.0.0
+        return true;
+    }
+
+    // Check for 172.16.0.0/12
+    if ((ipInt & 0xFFF00000) == 0xAC100000) { // 0xFFF00000 = 255.240.0.0, 0xAC100000 = 172.16.0.0
+        return true;
+    }
+
+    // Check for 192.168.0.0/16
+    if ((ipInt & 0xFFFF0000) == 0xC0A80000) { // 0xFFFF0000 = 255.255.0.0, 0xC0A80000 = 192.168.0.0
+        return true;
+    }
+
+    // Not a private IP
+    return false;
+}
 void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
     // Handle the client request
+
+    char buffer[1024];
+    while (true) {
+        int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
+        if (n <= 0) {
+            if (n == 0) {
+                std::cout << "Client disconnected\n";
+            } else {
+                std::cerr <<"Failed to read from socket\n";
+            }
+            break;
+        }
+
+        buffer[n] = '\0';
+        std::string clientMessage(buffer);
+        std::cout << "Received: " << clientMessage << std::endl;
+
+        if (clientMessage == "DISCOVER_SERVER") {
+            std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
+            if (checkLocalAddress(clientAddr)) {
+                std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
+                int messageSize = serverResponse.size();    
+                send(clientFD, serverResponse.c_str(),messageSize, 0);
+                // write(clientFD, serverResponse.c_str(), serverResponse.size());
+            } else {
+                std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+            }
+        } else if (clientMessage == "TERMINATE") {
+            std::cout << "Terminating server\n";
+            closesocket(clientFD);
+            return;
+        }
+    }
 }
 
 int main(int argc, char **argv) {
