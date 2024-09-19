@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <chrono>
-
+#include <bitset>
 
 #define ARRAY_SIZE 32
 #define DEBOUNCE_DURATION 50
@@ -40,16 +40,16 @@ bool isBitSet(const std::array<uint8_t, ARRAY_SIZE>& keyStates, uint8_t vkCode) 
     return (keyStates[byteIndex] & (1 << bitIndex)) != 0;
 }
 
-std::vector<std::string> findChanges(const std::vector<BYTE>& currentKeys,
+
+std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
                                      const std::vector<BYTE>& pastKeys,
                                       std::array<uint8_t, ARRAY_SIZE>& bitmask,
                                      std::unordered_map<BYTE, std::chrono::steady_clock::time_point>& keyPressTimes) {
     std::unordered_set<BYTE> currentKeySet(currentKeys.begin(), currentKeys.end());
     std::unordered_set<BYTE> pastKeySet(pastKeys.begin(), pastKeys.end());
-    std::vector<std::string> result;
-
+    std::vector<uint32_t> result;
     std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-    
+    std::vector<uint8_t> smallResult;
     for (BYTE key : pastKeySet) {
         if (currentKeySet.find(key) == currentKeySet.end() && isBitSet(bitmask, key)) {
             // // Key was in past but not pressed now, meaning it was released
@@ -59,7 +59,9 @@ std::vector<std::string> findChanges(const std::vector<BYTE>& currentKeys,
             if (lastPressTime != keyPressTimes.end() &&
                 std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPressTime->second).count() >= DEBOUNCE_DURATION) {
                 // Key was in past but not pressed now, meaning it was released
-                result.push_back("Key " + std::to_string(key) + " was released");
+                uint32_t key32 = static_cast<uint32_t>(key);
+                result.push_back(key32);
+                smallResult.push_back(key);
                 updateKeyState(key, false, bitmask);
                 keyPressTimes.erase(key); // Remove key from map
             }
@@ -70,16 +72,38 @@ std::vector<std::string> findChanges(const std::vector<BYTE>& currentKeys,
             if (keyPressTimes.find(key) == keyPressTimes.end() ||
                 std::chrono::duration_cast<std::chrono::milliseconds>(now - keyPressTimes[key]).count() >= DEBOUNCE_DURATION) {
                 // Key is newly pressed
-                result.push_back("Key " + std::to_string(key) + " was pressed");
+                uint32_t key32 = static_cast<uint32_t> (key);
+                key32 = key32 | (1<<8);
+                result.push_back(key32);
+                smallResult.push_back(key);
                 updateKeyState(key, true, bitmask);
                 keyPressTimes[key] = now; // Update the time of the key press
             }
         }
     }
 
+    // return smallResult;
     return result;
 }
 
+std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes){
+    std::vector<uint32_t> packets;
+    uint32_t packet = 0;
+    size_t numKeystrokes = keystrokes.size();
+
+    for (size_t i = 0; i < numKeystrokes; ++i) {
+        packet |= (keystrokes[i] << ((2 - (i % 3)) * 9));
+
+        if ((i % 3 == 2) || (i == numKeystrokes - 1)) {
+            uint32_t header = (0b00 << 30) | ((i % 3 + 1) << 27);  
+            packet |= header;
+            packets.push_back(packet);
+            packet = 0;  // Reset packet for the next group
+        }
+    }
+
+    return packets;
+}
 void startLogging() {
     std::vector<BYTE> currentKeys; 
     std::vector<BYTE> pastKeys; 
@@ -98,13 +122,21 @@ void startLogging() {
             }
         }
 
-        std::vector<std::string> changes = findChanges(currentKeys, pastKeys, keyStates, keyPressTimes);
-        output.insert(output.end(), changes.begin(), changes.end()); 
-        // Print all outputs
-        for (const std::string& message : output) {
-            std::cout << message << std::endl;
+        // std::vector<std::string> changes = findChanges(currentKeys, pastKeys, keyStates, keyPressTimes);
+        std::vector<uint32_t> changes = findChanges(currentKeys, pastKeys, keyStates, keyPressTimes);
+        // output.insert(output.end(), changes.begin(), changes.end()); 
+        // for (const std::string& message : output) {
+        //     std::cout << message << std::endl;
+        // }
+        // output.clear();
+        if(changes.size() !=0){
+            std::vector<uint32_t> packets = packetize(changes);
+            for(uint32_t byte : packets){
+                std::bitset<32> binary(byte);
+                std::cout<<binary<<std::endl;
+            }
+            std::cout<<std::endl;
         }
-        output.clear();
         pastKeys = currentKeys;  
 
         Sleep(100); // Sleep to reduce CPU usage
