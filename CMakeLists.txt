@@ -8,9 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Collect all source files for the server and client
 file(GLOB SERVER_SOURCES dataServer/discoverableServer.cpp dataServer/*.hpp)
-file(GLOB CLIENT_SOURCES remoteClient/client.cpp remoteClient/*.hpp)
-file(GLOB TEST_SOURCES remoteClient/keylogger.cpp remoteClient/*.hpp)
-file(GLOB CLIENT_SOURCES_WIN remoteClient/winClient.cpp remoteClient/*.hpp)
+file(GLOB CLIENT_SOURCES remoteClient/linux/*.cpp remoteClient/linux/*.hpp)
+file(GLOB TEST_SOURCES remoteClient/windows/keylogger.cpp remoteClient/windows/*.hpp)
+file(GLOB CLIENT_SOURCES_WIN remoteClient/windows/*.cpp remoteClient/windows/*.hpp)
 file(GLOB SERVER_SOURCES_WIN dataServer/winServer.cpp dataServer/*.hpp)
 if(WIN32)
     message(STATUS "Configuring for Windows")

