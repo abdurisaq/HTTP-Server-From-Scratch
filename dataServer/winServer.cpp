@@ -3,6 +3,7 @@
 #include <string>
 #include <cstring>
 #include <thread>
+#include <bitset>
 #include <vector>
 #ifdef _WIN32
 #include <winsock2.h>
@@ -43,6 +44,12 @@ bool checkLocalAddress(sockaddr_in inAddr) {
     // Not a private IP
     return false;
 }
+void parsePacket(char * buffer, int numBits){
+
+    
+
+    
+}
 void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
     // Handle the client request
 
@@ -60,8 +67,15 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
-        std::cout << "Received: " << clientMessage << std::endl;
 
+        std::cout << "Received: " << clientMessage << std::endl;
+        std::cout << "Binary form of the message:\n";
+        for (int i = 0; i <n; ++i) {
+            // Convert each byte into its binary form and print
+            std::bitset<8> binary(buffer[i]);
+            std::cout << binary << " ";  // Print the binary form of each byte
+        }
+        std::cout << std::endl;
         if (clientMessage == "DISCOVER_SERVER") {
             std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
             if (checkLocalAddress(clientAddr)) {
