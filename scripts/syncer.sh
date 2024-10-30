@@ -47,7 +47,8 @@ process_event(){
 }
 
 # [command -v rsync] && [command -v inotifywait] && [echo "confirmed rsync and inotifywait is downloaded"] || [echo "ERROR: dependencies aren't downloaded" && exit 1]
-which intofiywait && echo "already installed inotifywait" || (echo "installing intofiywait..." && sudo apt update && sudo apt install intofiywait)
+which inotifywait && echo "already installed inotifywait" || (echo "installing inotifiywait..." && sudo apt update && sudo apt install inotifywait)
+
 rsync -a "$WATCHED_DIR/" "$WINDOWS_DIR/"
 
 inotifywait -m -r -e modify,create,delete,move,moved_to,moved_from "$WATCHED_DIR"|
