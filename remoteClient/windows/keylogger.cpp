@@ -95,6 +95,7 @@ std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
 //header idea for now, first 2 bits showing what type of packet this is 00: keystrokes , 01: file transfer, 10: clipboard copying, 11:system message
 //next 4 bytes are amount of keys pressed, if more than 15 keys are pressed, send 15 then send the remainder after in a seperate packet
 //next bit showing what operating system this comes from, 1 for windows, 0 for linux, going to add linux compatibility so 
+//last bit is if encoded or not. this bit can be changed for a different use later
 std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes){
 std::cout << "keystroke amount to be packetized : " << keystrokes.size() << std::endl;
     std::vector<uint32_t> packets;

