@@ -79,14 +79,8 @@ void parsePacket(char * buffer, int numBits){
 
         for(int j = 0; j < numKeystrokes; j++){
             uint16_t keystroke = keystrokes[j];
-            
-            // std::bitset<16> binary(keystroke);
-            // std::cout<<binary<<std::endl;
-            
             BYTE keyCode = keystroke & 0xFF;
-        
             int result = ToAscii(keyCode, MapVirtualKey(keyCode, MAPVK_VK_TO_VSC), keyboardState, &asciiValue, 0);
-            // std::cout<<static_cast<int>(keystroke &(0b1<<8))<<std::endl;
             if(((keystroke & (0b1<<8))>>8) != 0){
                 
                 std::cout<<"key pressed "<<static_cast<char>(asciiValue)<<std::endl;

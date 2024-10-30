@@ -6,9 +6,9 @@ RELEVANT_PATH=""
 WATCHED_DIR="/home/duri/HTTP-Server-From-Scratch"
 WATCHED_DIR_LENGTH=${#WATCHED_DIR}
 
-WINDOWS_DIR="/mnt/c/Users/abdur/Desktop/HTTP-Server-From-Scratch"
+WINDOWS_DIR="/mnt/c/Users/abdur/Documents/HTTP-Server-From-Scratch"
 
-LOG_FILE="/mnt/c/Users/abdur/Desktop/log.txt"
+LOG_FILE="/mnt/c/Users/abdur/Documents/log.txt"
 TEMP_PATH=""
 
 
