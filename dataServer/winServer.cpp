@@ -46,10 +46,11 @@ bool checkLocalAddress(sockaddr_in inAddr) {
     // Not a private IP
     return false;
 }
-void parsePacket(char * buffer, int numBits){
-    if(numBits < 1)return;
+char parsePacket(char * buffer, int numBits){
+    if(numBits < 1)return ' ';
     uint8_t header = buffer[0];
     int type = (header & (0b11<<6)) >>6;
+    char ascii = ' ';
     if(type ==0){
         std::cout<<"keylogging packet"<<std::endl;
         int numKeystrokes = (header & (0b1111<<2))>>2;
@@ -73,7 +74,7 @@ void parsePacket(char * buffer, int numBits){
         BYTE keyboardState[256];
 
         if (!GetKeyboardState(keyboardState)) {
-            return;
+            return ' ';
         }
         WORD asciiValue;
 
@@ -81,20 +82,21 @@ void parsePacket(char * buffer, int numBits){
             uint16_t keystroke = keystrokes[j];
             BYTE keyCode = keystroke & 0xFF;
             int result = ToAscii(keyCode, MapVirtualKey(keyCode, MAPVK_VK_TO_VSC), keyboardState, &asciiValue, 0);
+            ascii = static_cast<char>(asciiValue);
             if(((keystroke & (0b1<<8))>>8) != 0){
                 
-                std::cout<<"key pressed "<<static_cast<char>(asciiValue)<<std::endl;
+                std::cout<<"key pressed "<<ascii<<std::endl;
             }else{
-                std::cout<<"key released "<<static_cast<char>(asciiValue)<<std::endl;
+                std::cout<<"key released "<<ascii<<std::endl;
             }
         }
 
     }
     
-
+return ascii;
     
 }
-void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
+void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition) {
     // Handle the client request
 
     char buffer[1024];
@@ -111,8 +113,14 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
-        parsePacket(buffer,n);
-
+        char ascii = parsePacket(buffer,n);
+        std::cout<<"ascii parsed: " << ascii<<std::endl;
+        if(ascii =='s'){
+            std::string serverResponse = "SERVER_RESPONSE: receiver";
+            int messageSize = serverResponse.size();    
+            send(clientFD, serverResponse.c_str(),messageSize, 0);
+            continue;
+        }
         std::cout << "Received: " << clientMessage << std::endl;
         std::cout << "Binary form of the message:\n";
         for (int i = 0; i <n; ++i) {
@@ -124,7 +132,15 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr) {
         if (clientMessage == "DISCOVER_SERVER") {
             std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
             if (checkLocalAddress(clientAddr)) {
-                std::string serverResponse = "SERVER_RESPONSE: " + std::to_string(PORT);
+
+                std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
+                if(clientAccessPosition < 2){
+                    std::cout<<"first connection found, setting them to be broadcaster"<<std::endl;
+                    serverResponse += "broadcaster";
+                }else{
+                    serverResponse += "receiver";
+                    std::cout<<"setting connection to be receiver"<<std::endl;
+                }
                 int messageSize = serverResponse.size();    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
                 // write(clientFD, serverResponse.c_str(), serverResponse.size());
@@ -176,7 +192,7 @@ int main(int argc, char **argv) {
     }
 
     std::cout << "Listening on port " << PORT << std::endl;
-
+    int pos = 0;
     while (true) {
         sockaddr_in clientAddr;
         int clientAddrLen = sizeof(clientAddr);
@@ -186,13 +202,16 @@ int main(int argc, char **argv) {
             continue;
         }
 
+
         std::cout << "Got a connection" << std::endl;
-        std::thread th(handleRequest, client_fd, clientAddr);
+        std::cout<<pos<<std::endl;
+        std::thread th(handleRequest, client_fd, clientAddr,pos);
         th.detach();
+        pos++;
     }
 
     closesocket(server_fd);
     WSACleanup();
-    return 0;
+    return 1;
 }
 

