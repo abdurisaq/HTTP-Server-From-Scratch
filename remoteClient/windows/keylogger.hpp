@@ -29,5 +29,7 @@ std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes);
 
 void startLogging(SOCKET clientFD,std::atomic<bool>& running);
 
+char parsePacket(char * buffer, int numBits);
+
 #endif // MY_HEADER_H
 

@@ -14,6 +14,8 @@
 #include <winuser.h>
 #include <ws2tcpip.h>
 #endif
+
+#include "../remoteClient/windows/keylogger.hpp"
 #define PORT 50000 
 #define BROADCAST_IP "255.255.255.255"
 
@@ -129,7 +131,13 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
     buffer[n] = '\0';
     std::string clientMessage(buffer);
     if (clientMessage == "DISCOVER_SERVER") {
-        std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
+        char ipBuffer[INET_ADDRSTRLEN];
+        std::cout << "Received discovery message from ip address: ";
+        if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
+            std::cout << ipBuffer << "\n";
+        } else {
+            std::cout << "Error converting IP address\n";
+        }
         if (checkLocalAddress(clientAddr)) {
 
             std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
@@ -137,7 +145,7 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                 std::cout<<"first connection found, setting them to be broadcaster"<<std::endl;
                 serverResponse += "broadcaster";
 
-                int messageSize = serverResponse.size();    
+                int messageSize = static_cast<int>(serverResponse.size());    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
                 while(true){
                     int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
@@ -163,7 +171,7 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                 serverResponse += "receiver";
                 std::cout<<"setting connection to be receiver"<<std::endl;
 
-                int messageSize = serverResponse.size();    
+                int messageSize = static_cast<int>(serverResponse.size());    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
                 numReceivers++;
                 int i =0;
@@ -179,7 +187,7 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                     }
                     std::string packet = queue[i-removedCount];
                     lock.unlock();
-                    int messageSize = packet.size();
+                    int messageSize = static_cast<int>(packet.size());
 
                     {
                         std::lock_guard<std::mutex> lock(coutMutex);
@@ -208,7 +216,14 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
             }
             // write(clientFD, serverResponse.c_str(), serverResponse.size());
         } else {
-            std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+
+            char ipBuffer[INET_ADDRSTRLEN];
+            std::cout << "Ignoring request from ";
+            if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
+                std::cout << ipBuffer << "\n";
+            } else {
+                std::cout << "Error converting IP address\n";
+            }
         }
     } else if (clientMessage == "TERMINATE") {
         std::cout << "Terminating server\n";
@@ -240,7 +255,7 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosit
         std::cout<<"ascii parsed: " << ascii<<std::endl;
         if(ascii =='s'){
             std::string serverResponse = "SERVER_RESPONSE: receiver";
-            int messageSize = serverResponse.size();    
+            int messageSize = static_cast<int>(serverResponse.size());    
             send(clientFD, serverResponse.c_str(),messageSize, 0);
             continue;
         }
@@ -253,7 +268,14 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosit
         }
         std::cout << std::endl;
         if (clientMessage == "DISCOVER_SERVER") {
-            std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
+
+            char ipBuffer[INET_ADDRSTRLEN];
+            std::cout << "Received discovery message from ip address";
+            if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
+                std::cout << ipBuffer << "\n";
+            } else {
+                std::cout << "Error converting IP address\n";
+            }
             if (checkLocalAddress(clientAddr)) {
 
                 std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
@@ -264,11 +286,18 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosit
                     serverResponse += "receiver";
                     std::cout<<"setting connection to be receiver"<<std::endl;
                 }
-                int messageSize = serverResponse.size();    
+                int messageSize = static_cast<int>(serverResponse.size());    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
                 // write(clientFD, serverResponse.c_str(), serverResponse.size());
             } else {
-                std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+
+                char ipBuffer[INET_ADDRSTRLEN];
+                std::cout << "Ignoring request from ";
+                if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
+                    std::cout << ipBuffer << "\n";
+                } else {
+                    std::cout << "Error converting IP address\n";
+                }
             }
         } else if (clientMessage == "TERMINATE") {
             std::cout << "Terminating server\n";
