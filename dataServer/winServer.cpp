@@ -5,6 +5,9 @@
 #include <thread>
 #include <bitset>
 #include <vector>
+#include <condition_variable>
+#include <atomic>
+#include <deque>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <Windows.h>
@@ -14,6 +17,17 @@
 #define PORT 50000 
 #define BROADCAST_IP "255.255.255.255"
 
+
+//global variables now to handle multithreading, will change later
+
+std::condition_variable cv;
+std::deque<std::string> queue;
+std::mutex queueMutex;
+std::mutex countMutex;
+std::mutex coutMutex;
+std::vector<int>countVec;
+std::atomic<int> removedCount(0); 
+std::atomic<int> numReceivers(0);
 void startup() {
     
     WSADATA wsadata;
@@ -96,6 +110,115 @@ char parsePacket(char * buffer, int numBits){
 return ascii;
     
 }
+
+void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition) {
+    // Handle the client request
+
+    char buffer[1024];
+
+    int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
+    if (n <= 0) {
+        if (n == 0) {
+            std::cout << "Client disconnected\n";
+        } else {
+            std::cerr <<"Failed to read from socket\n";
+        }
+        return;
+    }
+
+    buffer[n] = '\0';
+    std::string clientMessage(buffer);
+    if (clientMessage == "DISCOVER_SERVER") {
+        std::cout << "Received discovery message from ip address"<<inet_ntoa(clientAddr.sin_addr)<<"\n";
+        if (checkLocalAddress(clientAddr)) {
+
+            std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
+            if(clientAccessPosition < 2){
+                std::cout<<"first connection found, setting them to be broadcaster"<<std::endl;
+                serverResponse += "broadcaster";
+
+                int messageSize = serverResponse.size();    
+                send(clientFD, serverResponse.c_str(),messageSize, 0);
+                while(true){
+                    int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
+                    if (n <= 0) {
+                        if (n == 0) {
+                            std::cout << "Client disconnected\n";
+                        } else {
+                            std::cerr <<"Failed to read from socket\n";
+                        }
+                        return;
+                    }
+                    buffer[n] = '\0';
+                    {
+                    std::unique_lock<std::mutex>queueLock(queueMutex);
+                    queue.push_back(std::string(buffer));
+                    countVec.push_back(0);
+                    }
+                    cv.notify_all();
+
+                }
+
+            }else{
+                serverResponse += "receiver";
+                std::cout<<"setting connection to be receiver"<<std::endl;
+
+                int messageSize = serverResponse.size();    
+                send(clientFD, serverResponse.c_str(),messageSize, 0);
+                numReceivers++;
+                int i =0;
+                while(true){
+                    std::unique_lock<std::mutex> lock(queueMutex);
+                    if(queue.empty()||(i-removedCount)>=queue.size()){
+                            {
+                                std::lock_guard<std::mutex> lock(coutMutex);
+                                std::cout<<"worker id: "<<clientAccessPosition<<" no items in queue, sleeping.. "<<std::endl;
+                            }
+                        cv.wait(lock,[i]{return (!queue.empty()&&((i-removedCount)<queue.size()));});  
+                        continue;
+                    }
+                    std::string packet = queue[i-removedCount];
+                    lock.unlock();
+                    int messageSize = packet.size();
+
+                    {
+                        std::lock_guard<std::mutex> lock(coutMutex);
+                        std::cout<<"sending packet to client "<<std::endl;
+                        std::cout<<packet<<std::endl;
+                    }
+                    
+                    send(clientFD,packet.c_str(),messageSize,0);
+                    {
+                        std::unique_lock<std::mutex> count_lock(countMutex);
+                        countVec[i-removedCount]++;
+                        if(countVec.front() == numReceivers){
+                            std::unique_lock<std::mutex> queue_lock(queueMutex);
+                            // {
+                            //     std::lock_guard<std::mutex> cout_lock(coutMutex);
+                            //     std::cout<<"worker id: "<<clientAccessPosition<<" is resetting count"<<std::endl;
+                            // }
+                            queue.pop_front();
+                            countVec.erase(countVec.begin());  // Reset the counter for the next 
+                            removedCount++;
+                            queue_lock.unlock();
+                        }
+                    }
+                    i++;
+                }
+            }
+            // write(clientFD, serverResponse.c_str(), serverResponse.size());
+        } else {
+            std::cout << "Ignoring request from " << inet_ntoa(clientAddr.sin_addr) << std::endl;
+        }
+    } else if (clientMessage == "TERMINATE") {
+        std::cout << "Terminating server\n";
+        closesocket(clientFD);
+        return;
+    }
+
+}
+
+
 void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition) {
     // Handle the client request
 
@@ -126,7 +249,7 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosit
         for (int i = 0; i <n; ++i) {
             // Convert each byte into its binary form and print
             std::bitset<8> binary(buffer[i]);
-            std::cout << binary << " ";  // Print the binary form of each byte
+            std::cout << binary << " ";  
         }
         std::cout << std::endl;
         if (clientMessage == "DISCOVER_SERVER") {
@@ -205,7 +328,7 @@ int main(int argc, char **argv) {
 
         std::cout << "Got a connection" << std::endl;
         std::cout<<pos<<std::endl;
-        std::thread th(handleRequest, client_fd, clientAddr,pos);
+        std::thread th(handleRequestNew, client_fd, clientAddr,pos);
         th.detach();
         pos++;
     }

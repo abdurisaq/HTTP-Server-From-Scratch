@@ -156,23 +156,10 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
             }
             std::cout<<std::endl;
 
-
-            // Send the whole vector as a buffer
-            
-            // for (uint32_t& byte : packets) {
-            //     byte = htonl(byte);
-            // }
-
             size_t totalBits = 8 + 9 * changes.size(); // Calculate total bits needed
             size_t byteSize = (totalBits + 7) / 8; // Round up to nearest byte
             std::vector<char> buffer(byteSize); // Create a buffer
 
-            // for(int i=0; i < buffer.size();i++){
-            //
-            //     std::bitset<8> bits(static_cast<unsigned char>(  (packets[i/(sizeof(uint32_t))] >>(8*(3-(i %(sizeof(uint32_t)))))) & 0xFF));
-            //
-            //     std::cout << "Byte " << i << ": " << bits << std::endl;
-            // }
             for(int i =0; i < byteSize; i++){
                 // buffer[i] = (packets[i/(sizeof(uint32_t))] >>(8*(3-(i %(sizeof(uint32_t)))))) & 0xFF;
                 size_t packetIndex = i / sizeof(uint32_t); // Index into the packets array
