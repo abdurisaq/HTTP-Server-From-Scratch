@@ -9,7 +9,8 @@
 #include <array>
 
 #define ARRAY_SIZE 32
-#define DEBOUNCE_DURATION 50
+#define DEBOUNCE_DURATION 5
+//used to be 50
 void updateKeyState(uint8_t vkCode, bool pressed, std::array<uint8_t, ARRAY_SIZE>& keyStates);
 
 

