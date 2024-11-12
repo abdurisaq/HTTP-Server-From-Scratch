@@ -339,6 +339,6 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
         }
         pastKeys = currentKeys;  
 
-        Sleep(50); // Sleep to reduce CPU usage
+        Sleep(10); // Sleep to reduce CPU usage
     }
 }
