@@ -26,12 +26,12 @@ char parsePacket(char * buffer, int numBits){
     int type = (header & (0b11<<6)) >>6;
     char ascii = ' ';
     if(type ==0){
-        std::cout<<"keylogging packet"<<std::endl;
+        // std::cout<<"keylogging packet"<<std::endl;
         int numKeystrokes = (header & (0b1111<<2))>>2;
 
-        std::cout<<"num keystrokes"<<numKeystrokes<<std::endl;
+        // std::cout<<"num keystrokes"<<numKeystrokes<<std::endl;
         int operatingSystem = (header &(0b10)>>1);
-        std::cout<<"operating system"<<operatingSystem<<std::endl;
+        // std::cout<<"operating system"<<operatingSystem<<std::endl;
         int currentbitIndex = 0;
 
         std::vector<uint16_t> keystrokes(numKeystrokes);
@@ -71,6 +71,96 @@ char parsePacket(char * buffer, int numBits){
 
 }
 
+
+std::vector<std::pair<BYTE,bool>> decodePacket(char * packet, int numBits){
+    if(numBits < 1)return {};
+    uint8_t header = packet[0];
+    int type = (header & (0b11<<6)) >>6;
+    char ascii = ' ';
+    if(type ==0){
+        int numKeystrokes = (header & (0b1111<<2))>>2;
+
+        int currentbitIndex = 0;
+
+        std::vector<uint16_t> keystrokes(numKeystrokes);
+        for(int i =1; i <= numKeystrokes; i++){
+
+            char currentByte =  packet[i];
+
+            uint16_t keystroke = (((0b1 <<(8-currentbitIndex))-1) & currentByte)<<(1+currentbitIndex);
+            keystroke = keystroke | ((packet[i+1] & (((0b1 <<(1+currentbitIndex))-1)<<(7-currentbitIndex))) >>(7-currentbitIndex));
+            keystrokes[i-1] = keystroke;
+            currentbitIndex++;
+        }
+
+        std::vector<std::pair<BYTE,bool>> keyEvents(numKeystrokes);
+
+        for(int j = 0; j < numKeystrokes; j++){
+        
+            uint16_t keystroke = keystrokes[j];
+            BYTE key = static_cast<BYTE>(keystroke & 0xFF);
+
+            bool keyState = (keystroke >> 8) & 0x1;
+
+            keyEvents[j] = std::make_pair(key, keyState);
+        }
+        return keyEvents;
+    }
+    return {};
+}
+
+void simulateKeystrokes(const std::vector<std::pair<BYTE, bool>>& keyEvents) {
+    std::vector<INPUT> inputs;
+
+    // Loop through each key event and prepare the INPUT structure
+    for (const auto& keyEvent : keyEvents) {
+        BYTE vkCode = keyEvent.first;      // Virtual key code
+        bool isPressed = keyEvent.second;  // Key press state
+
+        INPUT input = {0};  // Initialize the input structure to zero
+
+        // Check if the vkCode corresponds to a mouse button (0x01 to 0x07)
+        if (vkCode <= 0x07) {
+            input.type = INPUT_MOUSE;
+            if (isPressed) {
+                // Mouse button press
+                switch (vkCode) {
+                    case 0x01: input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN; break;  // Left button down
+                    case 0x02: input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN; break; // Right button down
+                    case 0x04: input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN; break; // Middle button down
+                    case 0x05: input.mi.dwFlags = MOUSEEVENTF_XDOWN; break; // X button 1 down
+                    case 0x06: input.mi.dwFlags = MOUSEEVENTF_XUP; break; // X button 2 down
+                    default: break;
+                }
+            } else {
+                // Mouse button release
+                switch (vkCode) {
+                    case 0x01: input.mi.dwFlags = MOUSEEVENTF_LEFTUP; break; // Left button up
+                    case 0x02: input.mi.dwFlags = MOUSEEVENTF_RIGHTUP; break; // Right button up
+                    case 0x04: input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP; break; // Middle button up
+                    case 0x05: input.mi.dwFlags = MOUSEEVENTF_XUP; break; // X button 1 up
+                    case 0x06: input.mi.dwFlags = MOUSEEVENTF_XUP; break; // X button 2 up
+                    default: break;
+                }
+            }
+        } else {
+            // If vkCode corresponds to a keyboard key (above 0x07)
+            input.type = INPUT_KEYBOARD;
+            input.ki.wVk = vkCode;  // Set the virtual key code
+
+            if (isPressed) {
+                input.ki.dwFlags = 0;  // Key press
+            } else {
+                input.ki.dwFlags = KEYEVENTF_KEYUP;    // Key release
+            }
+        }
+
+        inputs.push_back(input);
+    }
+
+    // Send the input events to the system
+    SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
+}
 
 void updateKeyState(uint8_t vkCode, bool pressed, std::array<uint8_t, ARRAY_SIZE>& keyStates) {
     if (vkCode < 256) {    

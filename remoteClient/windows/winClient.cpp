@@ -16,7 +16,7 @@
 #include "keylogger.hpp"
 #define PORT 50000
 #define BROADCAST_IP "255.255.255.255"
-
+std::atomic<bool> running(false);
 
 
 void startup(){
@@ -92,7 +92,7 @@ ULONG scanForServer(){
 
 }
 
-std::atomic<bool> running(false);
+
 int main(int argc, char **argv) {
     startup();
     // Flush after every std::cout / std::cerr
@@ -192,10 +192,10 @@ int main(int argc, char **argv) {
                 break;
             }
 
-            std::cout<<"received packet"<<std::endl;
+            // std::cout<<"received packet"<<std::endl;
             
             std::string message(buffer);
-            std::cout<<message<<std::endl;
+            // std::cout<<message<<std::endl;
             if (strncmp(buffer, expectedPrefix, prefixLength) == 0) {
 
                 std::cout<<"prefix is correct"<<std::endl;
@@ -223,7 +223,10 @@ int main(int argc, char **argv) {
                 if(!running){
 
                     char ascii = parsePacket(buffer,n);
-                    std::cout<<"ascii parsed: " << ascii<<std::endl;
+
+                    std::vector<std::pair<BYTE,bool>> keyEvents = decodePacket(buffer,n);
+                    simulateKeystrokes(keyEvents);
+                    // std::cout<<"ascii parsed: " << ascii<<std::endl;
                 }else{
                     std::cout<<"not a server message but still running"<<std::endl;
                 }

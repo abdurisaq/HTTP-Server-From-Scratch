@@ -1,12 +1,12 @@
 #ifndef keylogger
 #define keylogger
 
-#include <windows.h>
-#include <winuser.h>
+#include <unordered_map>
+//#include <windows.h>
+//#include <winuser.h>
 #include <cstdint>
 #include <vector>
 #include <array>
-#include <unordered_map>
 
 #define ARRAY_SIZE 32
 #define DEBOUNCE_DURATION 50
@@ -30,6 +30,10 @@ std::vector<uint32_t> packetize(std::vector<uint32_t> keystrokes);
 void startLogging(SOCKET clientFD,std::atomic<bool>& running);
 
 char parsePacket(char * buffer, int numBits);
+
+std::vector<std::pair<BYTE,bool>> decodePacket(char * packet, int numBits);
+
+void simulateKeystrokes(const std::vector<std::pair<BYTE, bool>>& keyEvents);
 
 #endif // MY_HEADER_H
 
