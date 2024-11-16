@@ -1,6 +1,8 @@
 # Run file with:
 # pwsh -ExecutionPolicy Bypass -File .\scanLAN.ps1
 
+Write-Host "Starting scanning local network"
+
 $baseIP = "192.168.1"
 $outputFile = "ipaddress.txt"
 
