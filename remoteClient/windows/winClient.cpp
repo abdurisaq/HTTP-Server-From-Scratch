@@ -26,6 +26,8 @@ void startup(){
         exit(1);
     }
 
+    std::cout << std::unitbuf;
+    std::cerr << std::unitbuf;
 }
 
 
@@ -91,89 +93,93 @@ ULONG scanForServer(){
     return broadcastAddr.sin_addr.s_addr;
 
 }
-
-
-int main(int argc, char **argv) {
-    startup();
-    // Flush after every std::cout / std::cerr
-    std::cout << std::unitbuf;
-    std::cerr << std::unitbuf;
-
-    struct sockaddr_in broadcastAddr, recvAddr;
-    int addrLen = sizeof(recvAddr);
-
+SOCKET setupSocket() {
     SOCKET clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
         std::cerr << "Failed to create server socket\n";
-        return 1;
+        return INVALID_SOCKET;
     }
-    // Since the tester restarts your program quite often, setting SO_REUSEADDR
-    // ensures that we don't run into 'Address already in use' errors
-    int broadcast = 1;
 
-    ULONG serverAddr =  scanForServer();
-    // if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+    int broadcast = 1;
     if (setsockopt(clientFD, SOL_SOCKET, SO_REUSEADDR, (const char*)&broadcast, sizeof(broadcast)) == SOCKET_ERROR) {
         std::cerr << "setsockopt failed\n";
         closesocket(clientFD);
         WSACleanup();
-        return 1;
+        return INVALID_SOCKET;
     }
 
+    return clientFD;
+}
+
+
+void sendDiscoveryMessage(SOCKET clientFD, ULONG serverAddr) {
+    sockaddr_in broadcastAddr;
     broadcastAddr.sin_family = AF_INET;
     broadcastAddr.sin_addr.s_addr = serverAddr;
     broadcastAddr.sin_port = htons(PORT);
 
+    std::cout << "Sending discovery message to IP address " << inet_ntoa(broadcastAddr.sin_addr) << "\n";
 
-    std::cout<<"Sending discovery message to ip address "<<inet_ntoa(broadcastAddr.sin_addr)<<"\n";
-
-    if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0){
+    if (connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0) {
         std::cerr << "Failed to connect to server\n";
         closesocket(clientFD);
         WSACleanup();
-        return 1;
-    } 
-    
+        exit(1);
+    }
+
     std::string discoveryMessage = "DISCOVER_SERVER";
-    int messageSize = discoveryMessage.size();
-    send(clientFD, discoveryMessage.c_str(),messageSize, 0);
+    send(clientFD, discoveryMessage.c_str(), discoveryMessage.size(), 0);
+}
+
+
+int main(int argc, char **argv) {
+    startup();
+
+    struct sockaddr_in broadcastAddr, recvAddr;
+    int addrLen = sizeof(recvAddr);
+
+    SOCKET clientFD = setupSocket();
+    if (clientFD < 0) {
+        std::cerr << "Failed to create server socket\n";
+        return 1;
+    }
+    ULONG serverAddr =  scanForServer();
+    sendDiscoveryMessage(clientFD,serverAddr);
     char buffer[1024];
+
+    const char* expectedPrefix = "SERVER_RESPONSE: ";
+    size_t prefixLength = strlen(expectedPrefix);
+    
+
     int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
     buffer[n] = '\0';
     std::cout << "Received: " << buffer << "\n";
     std::cout << "Discovered server: " << inet_ntoa(recvAddr.sin_addr) << std::endl;
     std::cout<<"connected, please type and then click enter to send messages to the server"<<std::endl;
     std::cout<<"type \"terminate\" to kill the connection"<<std::endl;
-    const char* expectedPrefix = "SERVER_RESPONSE: ";
-    size_t prefixLength = strlen(expectedPrefix);
     if (strncmp(buffer, expectedPrefix, prefixLength) != 0) {
         std::cout << "did not get the expected response, closing connection" << std::endl;
         std::cout << "response received: " << buffer << std::endl;
     } else{
-        // std::atomic<bool> running(true);
-        // 
         std::thread keylogger_thread;
 
         std::string afterPrefix(buffer + prefixLength);
-        afterPrefix.erase(0, afterPrefix.find_first_not_of(" \n\r\t")); // Trim
-
+        afterPrefix.erase(0, afterPrefix.find_first_not_of(" \n\r\t")); 
         if (afterPrefix == "broadcaster") {
             if (!running) {
-                running = true;  // Set running to true and start the keylogger
+                running = true;
                 keylogger_thread = std::thread(startLogging, clientFD, std::ref(running));
                 std::cout << "Now in broadcaster mode. Keylogger started.\n";
             }
 
         } else if (afterPrefix == "receiver") {
             if (running) {
-                running = false;  // Set running to false to stop the keylogger
+                running = false;  
                 if (keylogger_thread.joinable()) {
-                    keylogger_thread.join();  // Join the thread to ensure it stops
-                }
+                    keylogger_thread.join();                  }
                 std::cout << "Now in receiver mode. Keylogger stopped.\n";
             }
         }
-        // Simulate the client doing other work
         while(true){
             int n = recvfrom(clientFD, buffer, sizeof(buffer), 0, (struct sockaddr *)&recvAddr, &addrLen);
             if (n < 0) {
@@ -183,10 +189,9 @@ int main(int argc, char **argv) {
                 if (keylogger_thread.joinable()) {
                     keylogger_thread.join();
                 }
-                break;  // Exit the loop or handle the error
+                break;
             }
             buffer[n] = '\0';
-            // When ready to stop the keylogger
             const char* terminateMessage = "TERMINATE";
             if(strncmp(buffer,terminateMessage,strlen(terminateMessage)) ==0){
                 running = false;
@@ -197,10 +202,7 @@ int main(int argc, char **argv) {
                 break;
             }
 
-            // std::cout<<"received packet"<<std::endl;
-            
             std::string message(buffer);
-            // std::cout<<message<<std::endl;
             if (strncmp(buffer, expectedPrefix, prefixLength) == 0) {
 
                 std::cout<<"prefix is correct"<<std::endl;
@@ -209,15 +211,15 @@ int main(int argc, char **argv) {
 
                 if (afterPrefix == "broadcaster") {
                     if (!running) {
-                        running = true;  // Set running to true and start the keylogger
+                        running = true;  
                         keylogger_thread = std::thread(startLogging, clientFD, std::ref(running));
                         std::cout << "Now in broadcaster mode. Keylogger started.\n";
                     }
                 } else if (afterPrefix == "receiver") {
                     if (running) {
-                        running = false;  // Set running to false to stop the keylogger
+                        running = false;
                         if (keylogger_thread.joinable()) {
-                            keylogger_thread.join();  // Join the thread to ensure it stops
+                            keylogger_thread.join();  
                         }
 
                         std::cout << "Now in receiver mode. Keylogger stopped.\n";
@@ -231,20 +233,16 @@ int main(int argc, char **argv) {
 
                     std::vector<std::pair<BYTE,bool>> keyEvents = decodePacket(buffer,n);
                     simulateKeystrokes(keyEvents);
-                    // std::cout<<"ascii parsed: " << ascii<<std::endl;
                 }else{
                     std::cout<<"not a server message but still running"<<std::endl;
                 }
-
-
             }
-
-
-
         }
-
     }
     closesocket(clientFD);
     WSACleanup();
     return 0;
 }
+
+
+
