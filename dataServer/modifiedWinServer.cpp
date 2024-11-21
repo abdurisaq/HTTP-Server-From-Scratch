@@ -308,6 +308,34 @@ void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosit
     }
 }
 
+void handleUDPRequests(SOCKET udp_fd) {
+    char buffer[1024];
+    sockaddr_in clientAddr;
+    int clientAddrLen = sizeof(clientAddr);
+
+    while (true) {
+        int n = recvfrom(udp_fd, buffer, sizeof(buffer) - 1, 0, (sockaddr*)&clientAddr, &clientAddrLen);
+        if (n <= 0) {
+            if (n == 0) {
+                std::cout << "Client disconnected\n";
+            } else {
+                std::cerr << "Failed to read from UDP socket\n";
+            }
+            continue;
+        }
+
+        buffer[n] = '\0';
+        std::string clientMessage(buffer);
+        std::cout << "Received UDP message: " << clientMessage << std::endl;
+
+        // You can handle the received message here, for example:
+        if (clientMessage == "DISCOVER_SERVER") {
+            std::string response = "UDP_SERVER_RESPONSE: Here is the UDP server response";
+            sendto(udp_fd, response.c_str(), response.size(), 0, (sockaddr*)&clientAddr, clientAddrLen);
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     startup();
 
@@ -330,12 +358,32 @@ int main(int argc, char **argv) {
     server_addr.sin_addr.s_addr = INADDR_ANY; // INADDR_ANY to bind to all interfaces
     server_addr.sin_port = htons(PORT);
 
+    SOCKET udp_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (udp_fd == INVALID_SOCKET) {
+        std::cerr << "Failed to create UDP socket: " << WSAGetLastError() << "\n";
+        return 1;
+    }
+
+    sockaddr_in udp_addr;
+    udp_addr.sin_family = AF_INET;
+    udp_addr.sin_addr.s_addr = INADDR_ANY; // Bind to all interfaces
+    udp_addr.sin_port = htons(PORT1);
+
+    if (bind(udp_fd, (sockaddr*)&udp_addr, sizeof(udp_addr)) == SOCKET_ERROR) {
+        std::cerr << "Failed to bind UDP socket: " << WSAGetLastError() << "\n";
+        closesocket(udp_fd);
+        WSACleanup();
+        return 1;
+    }
+
     if (bind(server_fd, (sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
         std::cerr << "Failed to bind to port: " << WSAGetLastError() << "\n";
         closesocket(server_fd);
         WSACleanup();
         return 1;
     }
+
+    std::thread udpThread(handleUDPRequests, udp_fd);
 
     if (listen(server_fd, 5) == SOCKET_ERROR) {
         std::cerr << "Failed to listen on socket: " << WSAGetLastError() << "\n";

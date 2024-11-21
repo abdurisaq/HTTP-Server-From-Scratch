@@ -11,7 +11,7 @@ file(GLOB SERVER_SOURCES dataServer/discoverableServer.cpp dataServer/*.hpp)
 file(GLOB CLIENT_SOURCES remoteClient/linux/*.cpp remoteClient/linux/*.hpp)
 file(GLOB TEST_SOURCES remoteClient/windows/keylogger.cpp remoteClient/windows/*.hpp)
 file(GLOB CLIENT_SOURCES_WIN remoteClient/windows/*.cpp remoteClient/windows/*.hpp)
-file(GLOB SERVER_SOURCES_WIN dataServer/winServer.cpp dataServer/*.hpp)
+file(GLOB SERVER_SOURCES_WIN dataServer/modifiedWinServer.cpp dataServer/*.hpp)
 if(WIN32)
     message(STATUS "Configuring for Windows")
     # Add any Windows-specific compile options or libraries

