@@ -44,28 +44,12 @@ void runScript(const std::string &scriptPath) {
     }
 }
 
-ULONG scanForServer() {
+ULONG scanForServer(SOCKET clientFD) {
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);
     
     runScript("pwsh -ExecutionPolicy Bypass -File .\\scripts\\scanLAN.ps1");
 
-    SOCKET clientFD = socket(AF_INET, SOCK_DGRAM, 0);
-    if (clientFD < 0) {
-        std::cerr << "Failed to create server socket\n";
-        exit(1);
-    }
-
-    timeval timeout;
-    timeout.tv_sec = 2;  
-    timeout.tv_usec = 0; 
-
-    if (setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
-        std::cerr << "Failed to set socket timeout\n";
-        closesocket(clientFD);
-        WSACleanup();
-        exit(1);
-    }
 
     char buffer[1024];
     std::vector<std::string> output;
@@ -123,11 +107,32 @@ ULONG scanForServer() {
 }
 
 
+SOCKET setupUdpSocket(){
 
-SOCKET setupSocket() {
+    SOCKET clientFD = socket(AF_INET, SOCK_DGRAM, 0);
+    if (clientFD < 0) {
+        std::cerr << "Failed to create udp server socket\n";
+        exit(1);
+    }
+
+    timeval timeout;
+    timeout.tv_sec = 2;  
+    timeout.tv_usec = 0; 
+
+    if (setsockopt(clientFD, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
+        std::cerr << "Failed to set socket timeout\n";
+        closesocket(clientFD);
+        WSACleanup();
+        exit(1);
+    }
+    return clientFD;
+
+}
+
+SOCKET setupTcpSocket() {
     SOCKET clientFD = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFD < 0) {
-        std::cerr << "Failed to create server socket\n";
+        std::cerr << "Failed to create tcp server socket\n";
         return INVALID_SOCKET;
     }
 
@@ -171,12 +176,13 @@ int main(int argc, char **argv) {
     struct sockaddr_in broadcastAddr, recvAddr;
     int addrLen = sizeof(recvAddr);
 
-    SOCKET clientFD = setupSocket();
-    if (clientFD < 0) {
+    SOCKET clientFD = setupTcpSocket();
+    SOCKET udpClientFd = setupUdpSocket();
+    if (clientFD < 0 ||udpClientFd < 0) {
         std::cerr << "Failed to create server socket\n";
         return 1;
     }
-    ULONG serverAddr =  scanForServer();
+    ULONG serverAddr =  scanForServer(udpClientFd);
     std::cout<<"found server"<<std::endl;
     Sleep(1000); 
     sendDiscoveryMessage(clientFD,serverAddr);
@@ -197,12 +203,15 @@ int main(int argc, char **argv) {
         std::cout << "response received: " << buffer << std::endl;
     } else{
         std::thread keylogger_thread;
-
+        std::thread mouselogger_thread;
         std::string afterPrefix(buffer + prefixLength);
         afterPrefix.erase(0, afterPrefix.find_first_not_of(" \n\r\t")); 
         if (afterPrefix == "broadcaster") {
             if (!running) {
                 running = true;
+                
+// void logMousePos(SOCKET clientUDPFD, std::atomic<bool>& running, sockaddr_in serverAddr);
+                mouselogger_thread = std::thread(logMousePos,udpClientFd,std::ref(running),serverAddr);
                 keylogger_thread = std::thread(startLogging, clientFD, std::ref(running));
                 std::cout << "Now in broadcaster mode. Keylogger started.\n";
             }
@@ -210,6 +219,9 @@ int main(int argc, char **argv) {
         } else if (afterPrefix == "receiver") {
             if (running) {
                 running = false;  
+                if (mouselogger_thread.joinable()) {
+                    mouselogger_thread.join();                  }
+
                 if (keylogger_thread.joinable()) {
                     keylogger_thread.join();                  }
                 std::cout << "Now in receiver mode. Keylogger stopped.\n";
@@ -221,6 +233,9 @@ int main(int argc, char **argv) {
                 std::cerr << "recvfrom failed, closing connection.\n";
                 running = false;
 
+                if (mouselogger_thread.joinable()) {
+                    mouselogger_thread.join();                  }
+
                 if (keylogger_thread.joinable()) {
                     keylogger_thread.join();
                 }
@@ -230,6 +245,8 @@ int main(int argc, char **argv) {
             const char* terminateMessage = "TERMINATE";
             if(strncmp(buffer,terminateMessage,strlen(terminateMessage)) ==0){
                 running = false;
+                if (mouselogger_thread.joinable()) {
+                    mouselogger_thread.join();                  }
 
                 if (keylogger_thread.joinable()) {
                     keylogger_thread.join();
@@ -247,6 +264,7 @@ int main(int argc, char **argv) {
                 if (afterPrefix == "broadcaster") {
                     if (!running) {
                         running = true;  
+                        mouselogger_thread = std::thread(logMousePos,udpClientFd,std::ref(running),serverAddr);
                         keylogger_thread = std::thread(startLogging, clientFD, std::ref(running));
                         std::cout << "Now in broadcaster mode. Keylogger started.\n";
                     }

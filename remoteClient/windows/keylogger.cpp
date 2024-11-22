@@ -19,7 +19,6 @@
 #define DEBOUNCE_DURATION 5
 //used to be 50
 #define KEYEVENT_SIZE 9
-
 char parsePacket(char * buffer, int numBits){
     if(numBits < 1)return ' ';
     uint8_t header = buffer[0];
@@ -340,5 +339,43 @@ void startLogging(SOCKET clientFD,std::atomic<bool>& running) {
         pastKeys = currentKeys;  
 
         Sleep(10); // Sleep to reduce CPU usage
+    }
+}
+
+
+
+double calculateDistance(POINT a, POINT b) {
+    return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
+}
+
+
+void logMousePos(SOCKET clientUDPFD, std::atomic<bool>& running, ULONG serverAddr){
+    POINT lastSentPos = { -1, -1 }; // Initialize with an invalid position
+    POINT currentPos;
+
+    sockaddr_in server;
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = serverAddr;  
+    server.sin_port = htons(52000);
+
+    while (running) {
+        // Get the cursor position
+        if (GetCursorPos(&currentPos)) {
+            // Check if the cursor has moved more than the threshold
+            if (lastSentPos.x == -1 || calculateDistance(lastSentPos, currentPos) >= 5) {
+                // Update the last sent position
+                lastSentPos = currentPos;
+
+                // Format position as a string
+                std::string message = std::to_string(currentPos.x) + "," + std::to_string(currentPos.y);
+
+                // Send the message to the server
+                sendto(clientUDPFD, message.c_str(), message.size(), 0, 
+                       (sockaddr*)&server, sizeof(server));
+            }
+        }
+
+        Sleep(10);
     }
 }
