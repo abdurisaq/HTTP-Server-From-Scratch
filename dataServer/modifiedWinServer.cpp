@@ -24,6 +24,7 @@
 //global variables now to handle multithreading, will change later
 
 std::condition_variable cv;
+std::condition_variable cv2;
 std::deque<std::string> queue;
 std::mutex queueMutex;
 std::mutex countMutex;
@@ -142,7 +143,7 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
         if (checkLocalAddress(clientAddr)) {
 
             std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
-            if(clientAccessPosition < 2){
+            if(clientAccessPosition <1){
                 std::cout<<"first connection found, setting them to be broadcaster"<<std::endl;
                 serverResponse += "broadcaster";
 
@@ -161,6 +162,16 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                     buffer[n] = '\0';
                     {
                     std::unique_lock<std::mutex>queueLock(queueMutex);
+
+                    if(numReceivers==0){
+                        {
+                                std::lock_guard<std::mutex> lock(coutMutex);
+                                std::cout<<"no receivers, sleeping "<<std::endl;
+                        }
+                        cv2.wait(queueLock,[]{return numReceivers>0;});  
+                        continue;
+                    }
+                    std::cout<<"adding packet to queue"<<std::endl;
                     queue.push_back(std::string(buffer));
                     countVec.push_back(0);
                     }
@@ -175,14 +186,18 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                 int messageSize = static_cast<int>(serverResponse.size());    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
                 numReceivers++;
-                int i =0;
+                cv2.notify_all();
+                int i =removedCount;
                 while(true){
                     std::unique_lock<std::mutex> lock(queueMutex);
                     if(queue.empty()||(i-removedCount)>=queue.size()){
                             {
                                 std::lock_guard<std::mutex> lock(coutMutex);
                                 std::cout<<"worker id: "<<clientAccessPosition<<" no items in queue, sleeping.. "<<std::endl;
-                            }
+                                std::cout<<"i: "<<i<<"removedCount: "<<removedCount<<"queue size: "<<queue.size()<<std::endl;
+                        }
+
+
                         cv.wait(lock,[i]{return (!queue.empty()&&((i-removedCount)<queue.size()));});  
                         continue;
                     }
@@ -195,8 +210,19 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                         std::cout<<"sending packet to client "<<std::endl;
                         std::cout<<packet<<std::endl;
                     }
-                    
-                    send(clientFD,packet.c_str(),messageSize,0);
+
+                    int result = send(clientFD,packet.c_str(),messageSize,0);
+                    if(result <=0){
+                        std::cout<<"disconnecting this thread"<<std::endl;
+                        std::lock_guard<std::mutex> count_lock(countMutex);
+                        numReceivers--;
+                        for (size_t i = 0; i < countVec.size(); i++) {
+                            if (countVec[i] > numReceivers) {
+                                countVec[i] = numReceivers;
+                            }
+                        }
+                        return;
+                    }
                     {
                         std::unique_lock<std::mutex> count_lock(countMutex);
                         countVec[i-removedCount]++;
@@ -235,78 +261,6 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
 }
 
 
-void handleRequest(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition) {
-    // Handle the client request
-
-    char buffer[1024];
-    while (true) {
-        int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
-        if (n <= 0) {
-            if (n == 0) {
-                std::cout << "Client disconnected\n";
-            } else {
-                std::cerr <<"Failed to read from socket\n";
-            }
-            break;
-        }
-
-        buffer[n] = '\0';
-        std::string clientMessage(buffer);
-        char ascii = parsePacket(buffer,n);
-        std::cout<<"ascii parsed: " << ascii<<std::endl;
-        if(ascii =='s'){
-            std::string serverResponse = "SERVER_RESPONSE: receiver";
-            int messageSize = static_cast<int>(serverResponse.size());    
-            send(clientFD, serverResponse.c_str(),messageSize, 0);
-            continue;
-        }
-        std::cout << "Received: " << clientMessage << std::endl;
-        std::cout << "Binary form of the message:\n";
-        for (int i = 0; i <n; ++i) {
-            // Convert each byte into its binary form and print
-            std::bitset<8> binary(buffer[i]);
-            std::cout << binary << " ";  
-        }
-        std::cout << std::endl;
-        if (clientMessage == "DISCOVER_SERVER") {
-
-            char ipBuffer[INET_ADDRSTRLEN];
-            std::cout << "Received discovery message from ip address";
-            if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
-                std::cout << ipBuffer << "\n";
-            } else {
-                std::cout << "Error converting IP address\n";
-            }
-            if (checkLocalAddress(clientAddr)) {
-
-                std::string serverResponse = "SERVER_RESPONSE: ";//  + std::to_string(PORT) + std::to_string(clientAccessPosition);
-                if(clientAccessPosition < 2){
-                    std::cout<<"first connection found, setting them to be broadcaster"<<std::endl;
-                    serverResponse += "broadcaster";
-                }else{
-                    serverResponse += "receiver";
-                    std::cout<<"setting connection to be receiver"<<std::endl;
-                }
-                int messageSize = static_cast<int>(serverResponse.size());    
-                send(clientFD, serverResponse.c_str(),messageSize, 0);
-                // write(clientFD, serverResponse.c_str(), serverResponse.size());
-            } else {
-
-                char ipBuffer[INET_ADDRSTRLEN];
-                std::cout << "Ignoring request from ";
-                if (inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer)) != NULL) {
-                    std::cout << ipBuffer << "\n";
-                } else {
-                    std::cout << "Error converting IP address\n";
-                }
-            }
-        } else if (clientMessage == "TERMINATE") {
-            std::cout << "Terminating server\n";
-            closesocket(clientFD);
-            return;
-        }
-    }
-}
 
 void handleUDPRequests(SOCKET udp_fd) {
     char buffer[1024];
@@ -326,7 +280,7 @@ void handleUDPRequests(SOCKET udp_fd) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
-        std::cout << "Received UDP message: " << clientMessage << std::endl;
+        // std::cout << "Received UDP message: " << clientMessage << std::endl;
 
         // You can handle the received message here, for example:
         if (clientMessage == "DISCOVER_SERVER") {

@@ -196,7 +196,11 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                         std::cout<<packet<<std::endl;
                     }
                     
-                    send(clientFD,packet.c_str(),messageSize,0);
+                    int result = send(clientFD,packet.c_str(),messageSize,0);
+                    // if(result <1){
+                    //     std::cout<<"receiver disconnected"<<std::endl;
+                    //     return;
+                    // }
                     {
                         std::unique_lock<std::mutex> count_lock(countMutex);
                         countVec[i-removedCount]++;
