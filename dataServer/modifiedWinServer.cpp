@@ -280,7 +280,7 @@ void handleUDPRequests(SOCKET udp_fd) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
-        // std::cout << "Received UDP message: " << clientMessage << std::endl;
+        std::cout << "Received UDP message: " << clientMessage << std::endl;
 
         // You can handle the received message here, for example:
         if (clientMessage == "DISCOVER_SERVER") {
