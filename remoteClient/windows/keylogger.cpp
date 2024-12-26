@@ -367,6 +367,9 @@ uint32_t packetizeMouseMovement(POINT cursorPos, bool isWindows, bool isEncoded)
 
     // Header: 2 bits for packet type (01 for mouse movement), 1 bit for OS (Windows or Linux), 1 bit for encoding
     uint8_t header = (0b01 << 6) | (isWindows << 5) | (isEncoded << 4) | COORDINATE_BITS; 
+
+    std::bitset<8> bits(header);
+    std::cout << "8-bit representation: " << bits << "\n";
     packet |= (header << 24); // Set the header in the first 8 bits of the packet
     numBitsLeft -= HEADER_SIZE;  
 
@@ -411,10 +414,17 @@ void logMousePos(SOCKET clientUDPFD, std::atomic<bool>& running, ULONG serverAdd
 
                 uint32_t packet = (packetizeMouseMovement(currentPos,1,0));
                 std::vector<char> buffer(4);
+
                 for(int i =0; i < 4; i ++){
                     buffer[i] = packet &( 0xFF <<((sizeof(char) * 8)*i));
                 }
 
+                std::bitset<8> bits(buffer[0]);
+                std::bitset<8> bits1(buffer[1]);
+                std::bitset<8> bits2(buffer[2]);
+                std::bitset<8> bits3(buffer[3]);
+                std::cout << "8-bit representation: " << bits << bits1<<bits2<<bits3<<"\n";
+                
                 sendto(clientUDPFD, buffer.data(), buffer.size(), 0, (sockaddr*)&server, sizeof(server));
             }
         }

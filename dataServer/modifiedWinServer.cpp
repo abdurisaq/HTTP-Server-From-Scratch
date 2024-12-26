@@ -5,6 +5,7 @@
 #include <thread>
 #include <bitset>
 #include <vector>
+#include <cmath>
 #include <condition_variable>
 #include <atomic>
 #include <deque>
@@ -280,8 +281,18 @@ void handleUDPRequests(SOCKET udp_fd) {
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
+        if( clientMessage.size() == 0 ){
+            std::cout<<"message is empty"<<std::endl;
+            continue;
+        }
         std::cout << "Received UDP message: " << clientMessage << std::endl;
 
+         std::bitset<8> bits(clientMessage.back());
+        std::cout << "8-bit representation: " << bits << "\n";
+        if((clientMessage.back() >>6) == 1){
+            std::cout<<"this is a mouse movement packet"<<std::endl;
+
+        }
         // You can handle the received message here, for example:
         if (clientMessage == "DISCOVER_SERVER") {
             std::string response = "UDP_SERVER_RESPONSE: Here is the UDP server response";

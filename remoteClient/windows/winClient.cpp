@@ -44,12 +44,15 @@ void runScript(const std::string &scriptPath) {
     }
 }
 
-ULONG scanForServer(SOCKET clientFD) {
+ULONG scanForServer(SOCKET clientFD, bool debugFlag) {
     struct sockaddr_in broadcastAddr, recvAddr;
     socklen_t addrLen = sizeof(recvAddr);
-    
-    runScript("pwsh -ExecutionPolicy Bypass -File .\\scripts\\scanLAN.ps1");
-
+    if(!debugFlag){ 
+        std::cout<<"not in debug mode"<<std::endl;
+        runScript("pwsh -ExecutionPolicy Bypass -File .\\scripts\\scanLAN.ps1");
+    }else{
+        std::cout<<"in debug mode, skipping lan scanning and using previous"<<std::endl;
+    }
 
     char buffer[1024];
     std::vector<std::string> output;
@@ -172,7 +175,17 @@ void sendDiscoveryMessage(SOCKET clientFD, ULONG serverAddr) {
 
 int main(int argc, char **argv) {
     startup();
-
+    bool debug = false;
+    if(argc > 1){
+        std::cout<<"first flag passed in: " << argv[1]<<std::endl;
+        std::string flag = argv[1];
+        if(flag == "debug"){
+            std::cout<<" first flag is debug, going into debug mode"<<std::endl;
+            debug = true;
+        }else{
+            std::cout<<" first flag is debug, going into debug mode"<<std::endl;
+        }
+    }
     struct sockaddr_in broadcastAddr, recvAddr;
     int addrLen = sizeof(recvAddr);
 
@@ -182,7 +195,8 @@ int main(int argc, char **argv) {
         std::cerr << "Failed to create server socket\n";
         return 1;
     }
-    ULONG serverAddr =  scanForServer(udpClientFd);
+
+    ULONG serverAddr =  scanForServer(udpClientFd,debug);
     std::cout<<"found server"<<std::endl;
     Sleep(1000); 
     sendDiscoveryMessage(clientFD,serverAddr);

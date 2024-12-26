@@ -35,10 +35,10 @@ Set-Location -Path .. -ErrorAction Stop
 # Execute the built server and client as separate processes
 try {
     Write-Host "Starting the server process..."
-    Start-Process ".\build_win\debug\server_win"
+    Start-Process ".\build_win\debug\server_win" $args
 
     Write-Host "Starting the client process..."
-    Start-Process ".\build_win\debug\client_win"
+    Start-Process ".\build_win\debug\client_win" $args
 } catch {
     Write-Host "Execution failed. Exiting with error code $($LASTEXITCODE)."
     exit $LASTEXITCODE
