@@ -24,6 +24,7 @@
 
 //global variables now to handle multithreading, will change later
 
+struct BroadcastState{
 std::condition_variable cv;
 std::condition_variable cv2;
 std::deque<std::string> queue;
@@ -31,8 +32,10 @@ std::mutex queueMutex;
 std::mutex countMutex;
 std::mutex coutMutex;
 std::vector<int>countVec;
-std::atomic<int> removedCount(0); 
-std::atomic<int> numReceivers(0);
+std::atomic<int> removedCount = 0; 
+std::atomic<int> numReceivers = 0;
+
+};
 void startup() {
     
     WSADATA wsadata;
@@ -116,7 +119,7 @@ return ascii;
     
 }
 
-void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition) {
+void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition,BroadcastState * global) {
     // Handle the client request
 
     char buffer[1024];
@@ -162,21 +165,21 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                     }
                     buffer[n] = '\0';
                     {
-                    std::unique_lock<std::mutex>queueLock(queueMutex);
+                    std::unique_lock<std::mutex>queueLock(global->queueMutex);
 
-                    if(numReceivers==0){
+                    if(global->numReceivers==0){
                         {
-                                std::lock_guard<std::mutex> lock(coutMutex);
+                                std::lock_guard<std::mutex> lock(global->coutMutex);
                                 std::cout<<"no receivers, sleeping "<<std::endl;
                         }
-                        cv2.wait(queueLock,[]{return numReceivers>0;});  
+                        global->cv2.wait(queueLock,[global]{return global->numReceivers>0;});  
                         continue;
                     }
                     std::cout<<"adding packet to queue"<<std::endl;
-                    queue.push_back(std::string(buffer));
-                    countVec.push_back(0);
+                    global->queue.push_back(std::string(buffer));
+                    global->countVec.push_back(0);
                     }
-                    cv.notify_all();
+                    global->cv.notify_all();
 
                 }
 
@@ -186,28 +189,28 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
 
                 int messageSize = static_cast<int>(serverResponse.size());    
                 send(clientFD, serverResponse.c_str(),messageSize, 0);
-                numReceivers++;
-                cv2.notify_all();
-                int i =removedCount;
+                global->numReceivers++;
+                global->cv2.notify_all();
+                int i =global->removedCount;
                 while(true){
-                    std::unique_lock<std::mutex> lock(queueMutex);
-                    if(queue.empty()||(i-removedCount)>=queue.size()){
+                    std::unique_lock<std::mutex> lock(global->queueMutex);
+                    if(global->queue.empty()||(i-global->removedCount)>=global->queue.size()){
                             {
-                                std::lock_guard<std::mutex> lock(coutMutex);
+                                std::lock_guard<std::mutex> lock(global->coutMutex);
                                 std::cout<<"worker id: "<<clientAccessPosition<<" no items in queue, sleeping.. "<<std::endl;
-                                std::cout<<"i: "<<i<<"removedCount: "<<removedCount<<"queue size: "<<queue.size()<<std::endl;
+                                std::cout<<"i: "<<i<<"removedCount: "<<global->removedCount<<"queue size: "<<global->queue.size()<<std::endl;
                         }
 
 
-                        cv.wait(lock,[i]{return (!queue.empty()&&((i-removedCount)<queue.size()));});  
+                        global->cv.wait(lock,[i,global]{return (!global->queue.empty()&&((i-global->removedCount)<global->queue.size()));});  
                         continue;
                     }
-                    std::string packet = queue[i-removedCount];
+                    std::string packet = global->queue[i-global->removedCount];
                     lock.unlock();
                     int messageSize = static_cast<int>(packet.size());
 
                     {
-                        std::lock_guard<std::mutex> lock(coutMutex);
+                        std::lock_guard<std::mutex> lock(global->coutMutex);
                         std::cout<<"sending packet to client "<<std::endl;
                         std::cout<<packet<<std::endl;
                     }
@@ -215,27 +218,27 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
                     int result = send(clientFD,packet.c_str(),messageSize,0);
                     if(result <=0){
                         std::cout<<"disconnecting this thread"<<std::endl;
-                        std::lock_guard<std::mutex> count_lock(countMutex);
-                        numReceivers--;
-                        for (size_t i = 0; i < countVec.size(); i++) {
-                            if (countVec[i] > numReceivers) {
-                                countVec[i] = numReceivers;
+                        std::lock_guard<std::mutex> count_lock(global->countMutex);
+                        global->numReceivers--;
+                        for (size_t i = 0; i < global->countVec.size(); i++) {
+                            if (global->countVec[i] > global->numReceivers) {
+                                global->countVec[i] = global->numReceivers;
                             }
                         }
                         return;
                     }
                     {
-                        std::unique_lock<std::mutex> count_lock(countMutex);
-                        countVec[i-removedCount]++;
-                        if(countVec.front() == numReceivers){
-                            std::unique_lock<std::mutex> queue_lock(queueMutex);
+                        std::unique_lock<std::mutex> count_lock(global->countMutex);
+                        global->countVec[i-global->removedCount]++;
+                        if(global->countVec.front() == global->numReceivers){
+                            std::unique_lock<std::mutex> queue_lock(global->queueMutex);
                             // {
                             //     std::lock_guard<std::mutex> cout_lock(coutMutex);
                             //     std::cout<<"worker id: "<<clientAccessPosition<<" is resetting count"<<std::endl;
                             // }
-                            queue.pop_front();
-                            countVec.erase(countVec.begin());  // Reset the counter for the next 
-                            removedCount++;
+                            global->queue.pop_front();
+                            global->countVec.erase(global->countVec.begin());  // Reset the counter for the next 
+                            global->removedCount++;
                             queue_lock.unlock();
                         }
                     }
@@ -304,6 +307,8 @@ void handleUDPRequests(SOCKET udp_fd) {
 int main(int argc, char **argv) {
     startup();
 
+
+    BroadcastState* global = new BroadcastState;
     SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == INVALID_SOCKET) {
         std::cerr << "Failed to create server socket: " << WSAGetLastError() << "\n";
@@ -371,7 +376,7 @@ int main(int argc, char **argv) {
 
         std::cout << "Got a connection" << std::endl;
         std::cout<<pos<<std::endl;
-        std::thread th(handleRequestNew, client_fd, clientAddr,pos);
+        std::thread th(handleRequestNew, client_fd, clientAddr,pos,global);
         th.detach();
         pos++;
     }
