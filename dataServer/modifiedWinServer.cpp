@@ -36,6 +36,10 @@ std::atomic<int> removedCount = 0;
 std::atomic<int> numReceivers = 0;
 
 };
+struct ClientInfo {
+    SOCKET clientFD;
+    sockaddr_in clientAddr;
+};
 void startup() {
     
     WSADATA wsadata;
@@ -119,20 +123,26 @@ return ascii;
     
 }
 
-void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition,BroadcastState * global) {
-    // Handle the client request
+bool checkValidReturn(int n){
 
-    char buffer[1024];
-
-    int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
     if (n <= 0) {
         if (n == 0) {
             std::cout << "Client disconnected\n";
         } else {
             std::cerr <<"Failed to read from socket\n";
         }
-        return;
+        return false;
     }
+    return true;
+
+}
+void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPosition,BroadcastState * global) {
+    // Handle the client request
+
+    char buffer[1024];
+
+    int n = recv(clientFD, buffer, sizeof(buffer) - 1,0);
+    if(!checkValidReturn(n))return;
 
     buffer[n] = '\0';
     std::string clientMessage(buffer);
@@ -263,24 +273,28 @@ void handleRequestNew(SOCKET clientFD, sockaddr_in clientAddr,int clientAccessPo
     }
 
 }
+int findExistingClientID(const sockaddr_in& addr, std::unordered_map<int,ClientInfo> map) {
+    for (const auto& [id, clientInfo] : map) {
+        const sockaddr_in& storedAddr = clientInfo.address;
+        if (addr.sin_family == storedAddr.sin_family &&
+            addr.sin_port == storedAddr.sin_port &&
+            addr.sin_addr.s_addr == storedAddr.sin_addr.s_addr) {
+            return id;  
+        }
+    }
+    return -1;  
+}
 
 
-
-void handleUDPRequests(SOCKET udp_fd) {
+void handleUDPRequests(SOCKET udp_fd, std::atomic<int> clientId, std::unordered_map<int,ClientInfo> map ) {
     char buffer[1024];
     sockaddr_in clientAddr;
     int clientAddrLen = sizeof(clientAddr);
 
     while (true) {
         int n = recvfrom(udp_fd, buffer, sizeof(buffer) - 1, 0, (sockaddr*)&clientAddr, &clientAddrLen);
-        if (n <= 0) {
-            if (n == 0) {
-                std::cout << "Client disconnected\n";
-            } else {
-                std::cerr << "Failed to read from UDP socket\n";
-            }
-            continue;
-        }
+        
+        if(!checkValidReturn(n))continue;
 
         buffer[n] = '\0';
         std::string clientMessage(buffer);
@@ -296,10 +310,17 @@ void handleUDPRequests(SOCKET udp_fd) {
             std::cout<<"this is a mouse movement packet"<<std::endl;
 
         }
-        // You can handle the received message here, for example:
+        int id = findExistingClientID(clientAddr,map);
+        if(id == -1){
+            id = clientId.fetch_add(1);
+        }
         if (clientMessage == "DISCOVER_SERVER") {
-            std::string response = "UDP_SERVER_RESPONSE: Here is the UDP server response";
+            std::string response = "UDP_SERVER_RESPONSE:ID-" + std::to_string(id) + "- Here is the UDP server response";
+            map[id] = {udp_fd,clientAddr};
             sendto(udp_fd, response.c_str(), response.size(), 0, (sockaddr*)&clientAddr, clientAddrLen);
+        }else if(){//handle if first bits indicate its sending a mouse movement over udp, then broadcast it to all in the mappin gbut the sender
+            //probably have dedicated thread to read through packets sent to a thread safe queue, and sleep afterwards. copy the same architect of tcp thread safe queue, but just one  thread for now instead of each connection having a thread because udp is connectionless. just goonna loop over map and send out packet.
+
         }
     }
 }
@@ -353,7 +374,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    std::thread udpThread(handleUDPRequests, udp_fd);
+
+    std::atomic<int> clientCounter = 0;
+    std::unordered_map<int, ClientInfo> clientMap;
+    std::thread udpThread(handleUDPRequests, udp_fd,clientCounter, clientMap);
 
     if (listen(server_fd, 5) == SOCKET_ERROR) {
         std::cerr << "Failed to listen on socket: " << WSAGetLastError() << "\n";
